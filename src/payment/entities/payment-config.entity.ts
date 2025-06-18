@@ -15,8 +15,8 @@ import { Payment } from './payment.entity';
 @Index(['code'], { unique: true })
 @Index(['isActive'])
 export class PaymentConfig {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @PrimaryGeneratedColumn()
+  id: number;
 
   @Column({ unique: true, length: 50 })
   code: string;
