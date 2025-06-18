@@ -1,0 +1,4 @@
+export enum PaymentItemType {
+  VOUCHER_IMAGE = 'VOUCHER_IMAGE',
+  POINTS_TRANSACTION = 'POINTS_TRANSACTION',
+}
