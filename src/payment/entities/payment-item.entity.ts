@@ -12,8 +12,8 @@ import { Payment } from './payment.entity';
 import { PaymentItemType } from '../enum/payment-item.enum';
 
 @Entity('payment_items')
-@Index(['payment', 'isActive'])
-@Index(['itemType', 'isActive'])
+@Index(['payment'])
+@Index(['itemType'])
 export class PaymentItem {
   @PrimaryGeneratedColumn('uuid')
   id: string;
