@@ -21,8 +21,8 @@ import { PaymentMethod } from '../enum/patment-method';
 @Index(['status', 'createdAt'])
 @Index(['userId', 'status'])
 export class Payment {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @PrimaryGeneratedColumn()
+  id: number;
 
   @Column({ name: 'user_id' })
   @Index()

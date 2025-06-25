@@ -15,8 +15,8 @@ import { PaymentItemType } from '../enum/payment-item.enum';
 @Index(['payment'])
 @Index(['itemType'])
 export class PaymentItem {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @PrimaryGeneratedColumn()
+  id: number;
 
   @ManyToOne(() => Payment, (payment) => payment.items, {
     nullable: false,
