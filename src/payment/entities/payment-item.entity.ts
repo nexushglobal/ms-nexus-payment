@@ -6,16 +6,16 @@ import {
   Index,
   JoinColumn,
   ManyToOne,
-  PrimaryGeneratedColumn,
+  PrimaryColumn,
 } from 'typeorm';
-import { Payment } from './payment.entity';
 import { PaymentItemType } from '../enum/payment-item.enum';
+import { Payment } from './payment.entity';
 
 @Entity('payment_items')
 @Index(['payment'])
 @Index(['itemType'])
 export class PaymentItem {
-  @PrimaryGeneratedColumn()
+  @PrimaryColumn()
   id: number;
 
   @ManyToOne(() => Payment, (payment) => payment.items, {

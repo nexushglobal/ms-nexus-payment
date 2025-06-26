@@ -6,7 +6,7 @@ import {
   Entity,
   Index,
   OneToMany,
-  PrimaryGeneratedColumn,
+  PrimaryColumn,
   UpdateDateColumn,
 } from 'typeorm';
 import { Payment } from './payment.entity';
@@ -15,9 +15,8 @@ import { Payment } from './payment.entity';
 @Index(['code'], { unique: true })
 @Index(['isActive'])
 export class PaymentConfig {
-  @PrimaryGeneratedColumn()
+  @PrimaryColumn()
   id: number;
-
   @Column({ unique: true, length: 50 })
   code: string;
 
