@@ -62,21 +62,22 @@ export class PaymentConfigMigrationService {
 
     for (const configData of paymentConfigsData) {
       try {
-        // Verificar si la configuración ya existe por código
+        // Verificar si la configuración ya existe por ID
         const existingConfig = await this.paymentConfigRepository.findOne({
-          where: { code: configData.code.toUpperCase().trim() },
+          where: { id: configData.id },
         });
 
         if (existingConfig) {
           this.logger.warn(
-            `⚠️ Configuración de pago ${configData.code} ya existe, saltando...`,
+            `⚠️ Configuración de pago con ID ${configData.id} ya existe, saltando...`,
           );
           details.skipped++;
           continue;
         }
 
-        // Crear nueva configuración de pago
+        // Crear nueva configuración de pago conservando el ID original
         const newPaymentConfig = this.paymentConfigRepository.create({
+          id: configData.id, // ⭐ Conservar el ID original
           code: configData.code.toUpperCase().trim(),
           name:
             configData.name?.trim() ||
@@ -92,10 +93,10 @@ export class PaymentConfigMigrationService {
         details.created++;
 
         this.logger.log(
-          `✅ Configuración de pago creada: ${configData.code} -> ID: ${savedConfig.id}`,
+          `✅ Configuración de pago creada: ${configData.code} -> ID: ${savedConfig.id} (conservado)`,
         );
       } catch (error) {
-        const errorMsg = `Error creando configuración de pago ${configData.code}: ${error.message}`;
+        const errorMsg = `Error creando configuración de pago ${configData.code} (ID: ${configData.id}): ${error.message}`;
         details.errors.push(errorMsg);
         this.logger.error(`❌ ${errorMsg}`);
       }
@@ -131,6 +132,16 @@ export class PaymentConfigMigrationService {
         ) {
           errors.push(
             `Configuración de pago en índice ${index} falta el campo requerido: ${field}`,
+          );
+        }
+      }
+
+      // Validar que el ID sea un número válido
+      if (config.id !== undefined) {
+        const configId = Number(config.id);
+        if (isNaN(configId) || configId <= 0) {
+          errors.push(
+            `Configuración de pago en índice ${index} tiene un ID inválido: ${config.id}`,
           );
         }
       }

@@ -5,15 +5,15 @@ import {
   Transport,
 } from '@nestjs/microservices';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { firstValueFrom } from 'rxjs';
-import { Payment } from 'src/payment/entities/payment.entity';
+import { envs } from 'src/config/envs';
 import { PaymentConfig } from 'src/payment/entities/payment-config.entity';
 import { PaymentItem } from 'src/payment/entities/payment-item.entity';
-import { PaymentStatus } from 'src/payment/enum/payment-status.enum';
+import { Payment } from 'src/payment/entities/payment.entity';
 import { PaymentMethod } from 'src/payment/enum/patment-method';
 import { PaymentItemType } from 'src/payment/enum/payment-item.enum';
-import { envs } from 'src/config/envs';
+import { PaymentStatus } from 'src/payment/enum/payment-status.enum';
+import { Repository } from 'typeorm';
 import {
   PaymentMigrationData,
   PaymentMigrationResult,
@@ -24,9 +24,8 @@ export class PaymentMigrationService {
   private readonly logger = new Logger(PaymentMigrationService.name);
   private readonly usersClient: ClientProxy;
 
-  // Mapeo de IDs antiguos a nuevos IDs
-  private paymentIdMap = new Map<number, number>();
-  private paymentConfigIdMap = new Map<number, number>();
+  // Ya no necesitamos mapear IDs porque conservamos los originales
+  private processedPaymentIds = new Set<number>();
 
   constructor(
     @InjectRepository(Payment)
@@ -59,12 +58,8 @@ export class PaymentMigrationService {
     };
 
     try {
-      // Limpiar mapeos anteriores
-      this.paymentIdMap.clear();
-      this.paymentConfigIdMap.clear();
-
-      // Cargar mapeo de configuraciones de pago existentes
-      await this.loadPaymentConfigMapping();
+      // Limpiar set de IDs procesados
+      this.processedPaymentIds.clear();
 
       // Paso 1: Crear pagos
       this.logger.log('💳 Creando pagos...');
@@ -86,21 +81,6 @@ export class PaymentMigrationService {
     return result;
   }
 
-  private async loadPaymentConfigMapping(): Promise<void> {
-    this.logger.log('📋 Cargando mapeo de configuraciones de pago...');
-
-    const paymentConfigs = await this.paymentConfigRepository.find();
-
-    // Crear mapeo basado en el ID del paymentConfig de la data de migración
-    for (const config of paymentConfigs) {
-      this.paymentConfigIdMap.set(config.id, config.id);
-    }
-
-    this.logger.log(
-      `✅ Cargadas ${paymentConfigs.length} configuraciones de pago`,
-    );
-  }
-
   private async createPayments(
     paymentsData: PaymentMigrationData[],
     details: any,
@@ -109,6 +89,20 @@ export class PaymentMigrationService {
 
     for (const paymentData of paymentsData) {
       try {
+        // Verificar si el pago ya existe por ID
+        const existingPayment = await this.paymentRepository.findOne({
+          where: { id: paymentData.id },
+        });
+
+        if (existingPayment) {
+          this.logger.warn(
+            `⚠️ Pago con ID ${paymentData.id} ya existe, saltando...`,
+          );
+          this.processedPaymentIds.add(paymentData.id);
+          details.skipped++;
+          continue;
+        }
+
         // Buscar información del usuario por email
         const userInfo = await this.getUserByEmail(
           paymentData.userEmail.trim(),
@@ -118,26 +112,6 @@ export class PaymentMigrationService {
           const errorMsg = `Usuario no encontrado: ${paymentData.userEmail}`;
           details.errors.push(errorMsg);
           this.logger.warn(`⚠️ ${errorMsg}`);
-          continue;
-        }
-
-        // Verificar si el pago ya existe
-        const existingPayment = await this.paymentRepository.findOne({
-          where: {
-            userId: userInfo.id,
-            paymentConfig: { id: paymentData.paymentConfigId },
-            amount: paymentData.amount,
-            createdAt: new Date(paymentData.createdAt),
-          },
-          relations: ['paymentConfig'],
-        });
-
-        if (existingPayment) {
-          this.logger.warn(
-            `⚠️ Pago para usuario ${paymentData.userEmail} con monto ${paymentData.amount} ya existe, saltando...`,
-          );
-          this.paymentIdMap.set(paymentData.id, existingPayment.id);
-          details.skipped++;
           continue;
         }
 
@@ -169,8 +143,9 @@ export class PaymentMigrationService {
           }
         }
 
-        // Crear nuevo pago
+        // Crear nuevo pago conservando el ID original
         const newPayment = this.paymentRepository.create({
+          id: paymentData.id, // ⭐ Conservar el ID original
           userId: userInfo.id,
           userEmail: userInfo.email,
           userName: userInfo.fullName,
@@ -196,19 +171,15 @@ export class PaymentMigrationService {
           updatedAt: new Date(paymentData.updatedAt),
         });
 
-        const savedPaymentResult =
-          await this.paymentRepository.save(newPayment);
-        const savedPayment = Array.isArray(savedPaymentResult)
-          ? savedPaymentResult[0]
-          : savedPaymentResult;
-        this.paymentIdMap.set(paymentData.id, savedPayment.id as number);
+        const savedPayment = await this.paymentRepository.save(newPayment);
+        this.processedPaymentIds.add(paymentData.id);
         details.created++;
 
         this.logger.log(
-          `✅ Pago creado: ${paymentData.userEmail} (${paymentData.amount}) -> ID: ${savedPayment.id}`,
+          `✅ Pago creado: ${paymentData.userEmail} (${paymentData.amount}) -> ID: ${savedPayment.id} (conservado)`,
         );
       } catch (error) {
-        const errorMsg = `Error creando pago para ${paymentData.userEmail}: ${error.message}`;
+        const errorMsg = `Error creando pago ${paymentData.id} para ${paymentData.userEmail}: ${error.message}`;
         details.errors.push(errorMsg);
         this.logger.error(`❌ ${errorMsg}`);
       }
@@ -230,36 +201,36 @@ export class PaymentMigrationService {
         continue;
       }
 
-      const paymentId = this.paymentIdMap.get(paymentData.id);
-      if (!paymentId) {
-        const errorMsg = `Pago ${paymentData.id} no encontrado para crear items`;
+      // Verificar que el pago fue procesado
+      if (!this.processedPaymentIds.has(paymentData.id)) {
+        const errorMsg = `Pago ${paymentData.id} no fue procesado para crear items`;
         details.errors.push(errorMsg);
         this.logger.error(`❌ ${errorMsg}`);
         continue;
       }
 
+      // Buscar el pago por ID (ya que conservamos el ID original)
       const payment = await this.paymentRepository.findOne({
-        where: { id: paymentId },
+        where: { id: paymentData.id },
       });
 
       if (!payment) {
+        const errorMsg = `Pago con ID ${paymentData.id} no encontrado para crear items`;
+        details.errors.push(errorMsg);
+        this.logger.error(`❌ ${errorMsg}`);
         continue;
       }
 
       for (const itemData of paymentData.items) {
         try {
-          // Verificar si el item ya existe
+          // Verificar si el item ya existe por ID
           const existingItem = await this.paymentItemRepository.findOne({
-            where: {
-              payment: { id: paymentId },
-              amount: Number(itemData.amount),
-              transactionDate: new Date(itemData.transactionDate),
-            },
+            where: { id: itemData.id },
           });
 
           if (existingItem) {
             this.logger.warn(
-              `⚠️ Item ya existe para pago ${paymentId}, saltando...`,
+              `⚠️ Item con ID ${itemData.id} ya existe, saltando...`,
             );
             details.skipped++;
             continue;
@@ -272,6 +243,7 @@ export class PaymentMigrationService {
           );
 
           const newItem = this.paymentItemRepository.create({
+            id: itemData.id, // ⭐ Conservar el ID original
             payment: payment,
             itemType: itemType,
             url: itemData.url?.trim() || undefined,
@@ -283,18 +255,14 @@ export class PaymentMigrationService {
             transactionDate: new Date(itemData.transactionDate),
           });
 
-          const savedItemResult =
-            await this.paymentItemRepository.save(newItem);
-          const savedItem = Array.isArray(savedItemResult)
-            ? savedItemResult[0]
-            : savedItemResult;
+          const savedItem = await this.paymentItemRepository.save(newItem);
           details.created++;
 
           this.logger.log(
-            `✅ Item creado para pago ${paymentId}: ${itemData.amount} -> ID: ${savedItem.id}`,
+            `✅ Item creado para pago ${paymentData.id}: ${itemData.amount} -> ID: ${savedItem.id} (conservado)`,
           );
         } catch (error) {
-          const errorMsg = `Error creando item para pago ${paymentId}: ${error.message}`;
+          const errorMsg = `Error creando item ${itemData.id} para pago ${paymentData.id}: ${error.message}`;
           details.errors.push(errorMsg);
           this.logger.error(`❌ ${errorMsg}`);
         }
@@ -408,6 +376,16 @@ export class PaymentMigrationService {
         }
       }
 
+      // Validar que el ID sea un número válido
+      if (payment.id !== undefined) {
+        const paymentId = Number(payment.id);
+        if (isNaN(paymentId) || paymentId <= 0) {
+          errors.push(
+            `Pago en índice ${index} tiene un ID inválido: ${payment.id}`,
+          );
+        }
+      }
+
       // Validar valores numéricos
       if (payment.amount !== undefined) {
         const amount = Number(payment.amount);
@@ -445,6 +423,16 @@ export class PaymentMigrationService {
             if (item[field] === undefined || item[field] === null) {
               errors.push(
                 `Item ${itemIndex} en pago ${index} falta el campo requerido: ${field}`,
+              );
+            }
+          }
+
+          // Validar ID del item
+          if (item.id !== undefined) {
+            const itemId = Number(item.id);
+            if (isNaN(itemId) || itemId <= 0) {
+              errors.push(
+                `Item ${itemIndex} en pago ${index} tiene un ID inválido: ${item.id}`,
               );
             }
           }
