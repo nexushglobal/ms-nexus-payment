@@ -7,11 +7,22 @@ import { PaymentItem } from './entities/payment-item.entity';
 import { Payment } from './entities/payment.entity';
 import { PaymentService } from './services/payment.service';
 import { UserPaymentsService } from './services/user-payment.service';
+import { PaymentDetailController } from './controllers/payment-detail.controller';
+import { PaymentDetailService } from './services/payment-detail.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Payment, PaymentConfig, PaymentItem])],
-  controllers: [PaymentController, UserPaymentsController],
-  providers: [PaymentService, UserPaymentsService],
-  exports: [TypeOrmModule, PaymentService, UserPaymentsService],
+  controllers: [
+    PaymentController,
+    UserPaymentsController,
+    PaymentDetailController,
+  ],
+  providers: [PaymentService, UserPaymentsService, PaymentDetailService],
+  exports: [
+    TypeOrmModule,
+    PaymentService,
+    UserPaymentsService,
+    PaymentDetailService,
+  ],
 })
 export class PaymentModule {}
