@@ -9,6 +9,9 @@ import { PaymentService } from './services/payment.service';
 import { UserPaymentsService } from './services/user-payment.service';
 import { PaymentDetailController } from './controllers/payment-detail.controller';
 import { PaymentDetailService } from './services/payment-detail.service';
+import { AdminPaymentsService } from './services/admin-payment.service';
+import { AdminPaymentsController } from './controllers/admin-payments.controller';
+import { AdminPaymentDetailService } from './services/admin-payment-detail.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Payment, PaymentConfig, PaymentItem])],
@@ -16,13 +19,22 @@ import { PaymentDetailService } from './services/payment-detail.service';
     PaymentController,
     UserPaymentsController,
     PaymentDetailController,
+    AdminPaymentsController,
   ],
-  providers: [PaymentService, UserPaymentsService, PaymentDetailService],
+  providers: [
+    PaymentService,
+    UserPaymentsService,
+    PaymentDetailService,
+    AdminPaymentsService,
+    AdminPaymentDetailService,
+  ],
   exports: [
     TypeOrmModule,
     PaymentService,
     UserPaymentsService,
     PaymentDetailService,
+    AdminPaymentsService,
+    AdminPaymentDetailService,
   ],
 })
 export class PaymentModule {}
