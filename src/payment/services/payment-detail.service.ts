@@ -1,7 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
+import {
+  ClientProxy,
+  ClientProxyFactory,
+  RpcException,
+  Transport,
+} from '@nestjs/microservices';
 import { InjectRepository } from '@nestjs/typeorm';
+import { firstValueFrom } from 'rxjs';
+import { envs } from 'src/config/envs';
 import { Repository } from 'typeorm';
-import { RpcException } from '@nestjs/microservices';
 import { Payment } from '../entities/payment.entity';
 import { PaymentItem } from '../entities/payment-item.entity';
 import {
@@ -10,25 +17,52 @@ import {
   PaymentItemResponse,
 } from '../interfaces/payment-detail.interface';
 
+// Nueva interface para admin que extiende la respuesta normal
+export interface AdminPaymentDetailResponse extends PaymentDetailResponse {
+  user?: {
+    id: string;
+    email: string;
+    fullName: string;
+    phone?: string;
+    documentNumber?: string;
+  };
+}
+
+// Nueva interface para parámetros de admin
+export interface GetAdminPaymentDetailParams {
+  paymentId: number;
+  isAdmin?: boolean;
+}
+
 @Injectable()
 export class PaymentDetailService {
   private readonly logger = new Logger(PaymentDetailService.name);
+  private readonly usersClient: ClientProxy;
 
   constructor(
     @InjectRepository(Payment)
     private paymentRepository: Repository<Payment>,
     @InjectRepository(PaymentItem)
     private paymentItemRepository: Repository<PaymentItem>,
-  ) {}
+  ) {
+    this.usersClient = ClientProxyFactory.create({
+      transport: Transport.NATS,
+      options: {
+        servers: [envs.NATS_SERVERS],
+      },
+    });
+  }
 
   async getPaymentDetail(
-    params: GetPaymentDetailParams,
-  ): Promise<PaymentDetailResponse> {
+    params: GetPaymentDetailParams | GetAdminPaymentDetailParams,
+  ): Promise<PaymentDetailResponse | AdminPaymentDetailResponse> {
     try {
-      const { paymentId, userId } = params;
+      const { paymentId } = params;
+      const isAdmin = 'isAdmin' in params ? params.isAdmin : false;
+      const userId = 'userId' in params ? params.userId : undefined;
 
       this.logger.log(
-        `🔍 Buscando detalle del pago ${paymentId} para usuario: ${userId}`,
+        `🔍 Buscando detalle del pago ${paymentId} ${isAdmin ? '(Admin)' : `para usuario: ${userId}`}`,
       );
 
       // Buscar el pago con sus relaciones
@@ -45,18 +79,26 @@ export class PaymentDetailService {
         });
       }
 
-      // Validar que el pago pertenece al usuario logueado
-      if (payment.userId !== userId) {
+      // Validar que el pago pertenece al usuario logueado SOLO si NO es admin
+      if (!isAdmin && payment.userId !== userId) {
         throw new RpcException({
           status: 403,
           message: 'No tienes permisos para acceder a este pago',
         });
       }
 
-      // Formatear y retornar la respuesta
-      const formattedPayment = this.formatPaymentDetail(payment);
+      // Si es admin, obtener información del usuario del pago
+      let userInfo;
+      if (isAdmin) {
+        userInfo = await this.getUserDetailedInfo(payment.userId);
+      }
 
-      this.logger.log(`✅ Detalle del pago ${paymentId} obtenido exitosamente`);
+      // Formatear y retornar la respuesta
+      const formattedPayment = this.formatPaymentDetail(payment, userInfo);
+
+      this.logger.log(
+        `✅ Detalle del pago ${paymentId} obtenido exitosamente ${isAdmin ? '(Admin)' : ''}`,
+      );
 
       return formattedPayment;
     } catch (error) {
@@ -76,8 +118,60 @@ export class PaymentDetailService {
     }
   }
 
-  private formatPaymentDetail(payment: Payment): PaymentDetailResponse {
-    return {
+  private async getUserDetailedInfo(userId: string): Promise<{
+    id: string;
+    email: string;
+    fullName: string;
+    phone?: string;
+    documentNumber?: string;
+  }> {
+    try {
+      this.logger.log(
+        `👤 Obteniendo información detallada del usuario: ${userId}`,
+      );
+
+      const userInfo = await firstValueFrom(
+        this.usersClient.send({ cmd: 'user.getUserDetailedInfo' }, { userId }),
+      );
+
+      if (!userInfo) {
+        return {
+          id: userId,
+          email: 'Usuario no encontrado',
+          fullName: 'Usuario no encontrado',
+          phone: undefined,
+          documentNumber: undefined,
+        };
+      }
+
+      return {
+        id: userInfo.id,
+        email: userInfo.email,
+        fullName: userInfo.fullName,
+        phone: userInfo.phone,
+        documentNumber: userInfo.documentNumber,
+      };
+    } catch (error) {
+      this.logger.warn(
+        `⚠️ Error obteniendo información del usuario ${userId}:`,
+        error,
+      );
+
+      return {
+        id: userId,
+        email: 'Error obteniendo información',
+        fullName: 'Error obteniendo información',
+        phone: undefined,
+        documentNumber: undefined,
+      };
+    }
+  }
+
+  private formatPaymentDetail(
+    payment: Payment,
+    userInfo?: any,
+  ): PaymentDetailResponse | AdminPaymentDetailResponse {
+    const baseResponse: PaymentDetailResponse = {
       id: payment.id,
       amount: payment.amount,
       status: payment.status,
@@ -105,6 +199,17 @@ export class PaymentDetailService {
       },
       items: this.formatPaymentItems(payment.items || []),
     };
+
+    // Si hay información de usuario (admin), agregarla a la respuesta
+    if (userInfo) {
+      const adminResponse: AdminPaymentDetailResponse = {
+        ...baseResponse,
+        user: userInfo,
+      };
+      return adminResponse;
+    }
+
+    return baseResponse;
   }
 
   private formatPaymentItems(items: PaymentItem[]): PaymentItemResponse[] {
@@ -119,5 +224,9 @@ export class PaymentDetailService {
         bankName: item.bankName,
         transactionDate: item.transactionDate,
       }));
+  }
+
+  async onModuleDestroy() {
+    await this.usersClient.close();
   }
 }

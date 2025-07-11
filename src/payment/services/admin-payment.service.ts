@@ -8,16 +8,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { firstValueFrom } from 'rxjs';
 import { envs } from 'src/config/envs';
 import { Repository, SelectQueryBuilder } from 'typeorm';
-import {
-  AdminPaymentResponse,
-  AdminPaymentsResponse,
-  GetAdminPaymentsDto,
-  PaymentMetadataResponse,
-} from '../dto/admin-payments.dto';
-import { PaymentConfig } from '../entities/payment-config.entity';
+import { GetAdminPaymentsDto } from '../dto/admin-payments.dto';
 import { Payment } from '../entities/payment.entity';
-import { PaymentMethod } from '../enum/patment-method';
-import { PaymentStatus } from '../enum/payment-status.enum';
+import { PaymentConfig } from '../entities/payment-config.entity';
+import { AdminPaymentResponse } from '../interfaces/admin-payment.interface';
 
 @Injectable()
 export class AdminPaymentsService {
@@ -38,86 +32,41 @@ export class AdminPaymentsService {
     });
   }
 
-  async getPaymentMetadata(): Promise<PaymentMetadataResponse> {
-    try {
-      this.logger.log('📋 Obteniendo metadatos de pagos');
-      this.logger.log('📋 Obteniendo metadatos de pagos');
-
-      const paymentConfigs = await this.paymentConfigRepository.find({
-        where: { isActive: true },
-        select: ['id', 'name', 'code'],
-        order: { name: 'ASC' },
-      });
-
-      const paymentMethods = [
-        { value: PaymentMethod.VOUCHER, label: 'Voucher' },
-        { value: PaymentMethod.POINTS, label: 'Puntos' },
-        { value: PaymentMethod.PAYMENT_GATEWAY, label: 'Pasarela de Pago' },
-      ];
-
-      const paymentStatuses = [
-        { value: PaymentStatus.PENDING, label: 'Pendiente' },
-        { value: PaymentStatus.APPROVED, label: 'Aprobado' },
-        { value: PaymentStatus.REJECTED, label: 'Rechazado' },
-        { value: PaymentStatus.COMPLETED, label: 'Completado' },
-      ];
-
-      this.logger.log(
-        `✅ Metadatos obtenidos: ${paymentConfigs.length} configuraciones`,
-      );
-
-      return {
-        paymentMethods,
-        paymentStatuses,
-        paymentConfigs: paymentConfigs.map((config) => ({
-          id: config.id,
-          name: config.name,
-          code: config.code,
-        })),
-      };
-    } catch (error) {
-      this.logger.error('❌ Error obteniendo metadatos de pagos:', error);
-      throw error;
-    }
-  }
-
-  async getAllPayments(
-    dto: GetAdminPaymentsDto,
-  ): Promise<AdminPaymentsResponse> {
+  async getAllPayments(dto: GetAdminPaymentsDto): Promise<{
+    payments: AdminPaymentResponse[];
+    total: number;
+  }> {
     try {
       this.logger.log(
-        `🔍 Obteniendo todos los pagos - Página: ${dto.page}, Límite: ${dto.limit}`,
+        `🔍 Obteniendo todos los pagos administrativos - Límite: ${dto.limit}, Offset: ${dto.offset}`,
       );
 
       const queryBuilder = this.buildPaymentsQuery(dto);
 
       const total = await queryBuilder.getCount();
 
-      const offset = (dto.page! - 1) * dto.limit!;
-      queryBuilder.skip(offset).take(dto.limit);
+      queryBuilder.skip(dto.offset).take(dto.limit);
 
       const payments = await queryBuilder.getMany();
 
-      this.logger.log(
-        `📊 Encontrados ${payments.length} pagos de ${total} totales`,
+      // Obtener información de usuarios en lote
+      const userIds = [...new Set(payments.map((payment) => payment.userId))];
+      const usersInfo = await this.getUsersInfoBatch(userIds);
+
+      const formattedPayments = payments.map((payment) =>
+        this.formatAdminPayment(payment, usersInfo[payment.userId]),
       );
 
-      const paymentsWithUserInfo =
-        await this.enrichPaymentsWithUserInfo(payments);
-
-      const totalPages = Math.ceil(total / dto.limit!);
+      this.logger.log(
+        `✅ Encontrados ${formattedPayments.length} pagos administrativos`,
+      );
 
       return {
-        payments: paymentsWithUserInfo,
-        pagination: {
-          page: dto.page!,
-          limit: dto.limit!,
-          total,
-          totalPages,
-        },
+        payments: formattedPayments,
+        total,
       };
     } catch (error) {
-      this.logger.error('❌ Error obteniendo todos los pagos:', error);
+      this.logger.error('❌ Error obteniendo pagos administrativos:', error);
       throw error;
     }
   }
@@ -127,79 +76,75 @@ export class AdminPaymentsService {
   ): SelectQueryBuilder<Payment> {
     const queryBuilder = this.paymentRepository
       .createQueryBuilder('payment')
-      .leftJoinAndSelect('payment.paymentConfig', 'paymentConfig')
-      .where('1 = 1');
+      .leftJoinAndSelect('payment.paymentConfig', 'paymentConfig');
 
-    if (dto.search && dto.search.trim()) {
-      const searchTerm = `%${dto.search.trim().toLowerCase()}%`;
+    if (dto.filters?.search && dto.filters.search.trim()) {
+      const searchTerm = `%${dto.filters.search.trim()}%`;
       queryBuilder.andWhere(
-        "(LOWER(payment.userEmail) LIKE :search OR LOWER(payment.userName) LIKE :search OR payment.userId IN (SELECT u.id FROM users u WHERE LOWER(u.email) LIKE :search OR LOWER(CONCAT(u.personalInfo.firstName, ' ', u.personalInfo.lastName)) LIKE :search OR u.personalInfo.documentNumber LIKE :search))",
+        '(payment.operationCode ILIKE :search OR payment.ticketNumber ILIKE :search OR paymentConfig.name ILIKE :search OR paymentConfig.code ILIKE :search)',
         { search: searchTerm },
       );
     }
 
-    if (dto.status) {
-      queryBuilder.andWhere('payment.status = :status', { status: dto.status });
-    }
-
-    if (dto.paymentMethod) {
-      queryBuilder.andWhere('payment.paymentMethod = :paymentMethod', {
-        paymentMethod: dto.paymentMethod,
-      });
-    }
-
-    if (dto.paymentConfigId) {
-      queryBuilder.andWhere('paymentConfig.id = :paymentConfigId', {
-        paymentConfigId: dto.paymentConfigId,
-      });
-    }
-
-    if (dto.startDate) {
+    if (dto.filters?.startDate) {
       queryBuilder.andWhere('payment.createdAt >= :startDate', {
-        startDate: new Date(dto.startDate),
+        startDate: new Date(dto.filters.startDate),
       });
     }
 
-    if (dto.endDate) {
-      const endDate = new Date(dto.endDate);
-      endDate.setDate(endDate.getDate() + 1);
-      queryBuilder.andWhere('payment.createdAt < :endDate', { endDate });
+    if (dto.filters?.endDate) {
+      queryBuilder.andWhere('payment.createdAt <= :endDate', {
+        startDate: new Date(dto.filters.endDate),
+      });
     }
 
-    queryBuilder.orderBy('payment.createdAt', 'DESC');
+    if (dto.filters?.status) {
+      queryBuilder.andWhere('payment.status = :status', {
+        status: dto.filters.status,
+      });
+    }
+
+    if (dto.filters?.paymentConfigId) {
+      queryBuilder.andWhere('payment.paymentConfigId = :paymentConfigId', {
+        paymentConfigId: dto.filters.paymentConfigId,
+      });
+    }
+
+    // Ordenamiento
+    const sortBy = dto.filters?.sortBy || 'createdAt';
+    const sortOrder = dto.filters?.sortOrder || 'DESC';
+
+    queryBuilder.orderBy(`payment.${sortBy}`, sortOrder);
 
     return queryBuilder;
   }
 
-  private async enrichPaymentsWithUserInfo(
-    payments: Payment[],
-  ): Promise<AdminPaymentResponse[]> {
-    const userIds = [...new Set(payments.map((payment) => payment.userId))];
+  private formatAdminPayment(
+    payment: Payment,
+    userInfo?: any,
+  ): AdminPaymentResponse {
+    const defaultUserInfo = {
+      id: payment.userId,
+      email: payment.userEmail || 'No disponible',
+      fullName: 'Usuario no encontrado',
+      documentNumber: undefined,
+    };
 
-    const usersInfo = await this.getUsersInfoBatch(userIds);
-
-    return payments.map((payment) => ({
+    return {
       id: payment.id,
       amount: payment.amount,
       status: payment.status,
       paymentMethod: payment.paymentMethod,
       operationCode: payment.operationCode,
       ticketNumber: payment.ticketNumber,
-      createdAt: payment.createdAt,
       reviewedAt: payment.reviewedAt,
-      reviewedByEmail: payment.reviewedByEmail,
-      user: usersInfo[payment.userId] || {
-        id: payment.userId,
-        email: payment.userEmail,
-        fullName: payment.userName || 'Usuario desconocido',
-        documentNumber: undefined,
-      },
+      createdAt: payment.createdAt,
+      updatedAt: payment.updatedAt,
       paymentConfig: {
-        id: payment.paymentConfig.id,
         name: payment.paymentConfig.name,
-        code: payment.paymentConfig.code,
       },
-    }));
+      user: userInfo || defaultUserInfo,
+    };
   }
 
   private async getUsersInfoBatch(userIds: string[]): Promise<{

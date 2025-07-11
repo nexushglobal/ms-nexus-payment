@@ -1,15 +1,14 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
-import { GetAdminPaymentsDto } from '../dto/admin-payments.dto';
 import { AdminPaymentsService } from '../services/admin-payment.service';
-import { GetAdminPaymentDetailDto } from '../dto/admin-payment-detail.dto';
-import { AdminPaymentDetailService } from '../services/admin-payment-detail.service';
+import { GetAdminPaymentsDto } from '../dto/admin-payments.dto';
+import { PaymentDetailService } from '../services/payment-detail.service';
 
 @Controller()
 export class AdminPaymentsController {
   constructor(
     private readonly adminPaymentsService: AdminPaymentsService,
-    private readonly adminPaymentDetailService: AdminPaymentDetailService,
+    private readonly paymentDetailService: PaymentDetailService,
   ) {}
 
   @MessagePattern({ cmd: 'payment.admin.getAllPayments' })
@@ -17,13 +16,11 @@ export class AdminPaymentsController {
     return await this.adminPaymentsService.getAllPayments(dto);
   }
 
-  @MessagePattern({ cmd: 'payment.admin.getMetadata' })
-  async getPaymentMetadata() {
-    return await this.adminPaymentsService.getPaymentMetadata();
-  }
-
   @MessagePattern({ cmd: 'payment.admin.getPaymentDetail' })
-  async getPaymentDetail(@Payload() dto: GetAdminPaymentDetailDto) {
-    return await this.adminPaymentDetailService.getPaymentDetail(dto);
+  async getPaymentDetail(@Payload() dto: { paymentId: number }) {
+    return await this.paymentDetailService.getPaymentDetail({
+      paymentId: dto.paymentId,
+      isAdmin: true,
+    });
   }
 }

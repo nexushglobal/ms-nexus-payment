@@ -11,7 +11,6 @@ import { PaymentDetailController } from './controllers/payment-detail.controller
 import { PaymentDetailService } from './services/payment-detail.service';
 import { AdminPaymentsService } from './services/admin-payment.service';
 import { AdminPaymentsController } from './controllers/admin-payments.controller';
-import { AdminPaymentDetailService } from './services/admin-payment-detail.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Payment, PaymentConfig, PaymentItem])],
@@ -26,7 +25,6 @@ import { AdminPaymentDetailService } from './services/admin-payment-detail.servi
     UserPaymentsService,
     PaymentDetailService,
     AdminPaymentsService,
-    AdminPaymentDetailService,
   ],
   exports: [
     TypeOrmModule,
@@ -34,7 +32,6 @@ import { AdminPaymentDetailService } from './services/admin-payment-detail.servi
     UserPaymentsService,
     PaymentDetailService,
     AdminPaymentsService,
-    AdminPaymentDetailService,
   ],
 })
 export class PaymentModule {}
