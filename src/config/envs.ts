@@ -6,6 +6,8 @@ interface EnvVars {
   NODE_ENV: 'development' | 'production' | 'test';
   NATS_SERVERS: string;
   PAYMENTS_DATABASE_URL: string;
+  PK_CULQUI: string;
+  SK_CULQUI: string;
 }
 
 const envsSchema = joi
@@ -23,6 +25,8 @@ const envsSchema = joi
       .string()
       .required()
       .description('PostgreSQL database URL'),
+    PK_CULQUI: joi.string().required().description('Culqi public key'),
+    SK_CULQUI: joi.string().required().description('Culqi secret key'),
   })
   .unknown(true);
 
