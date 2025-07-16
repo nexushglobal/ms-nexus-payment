@@ -8,7 +8,7 @@ import {
   JoinColumn,
   ManyToOne,
   OneToMany,
-  PrimaryColumn,
+  PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 import { PaymentConfig } from './payment-config.entity';
@@ -21,7 +21,7 @@ import { PaymentMethod } from '../enum/patment-method';
 @Index(['status', 'createdAt'])
 @Index(['userId', 'status'])
 export class Payment {
-  @PrimaryColumn()
+  @PrimaryGeneratedColumn()
   id: number;
 
   @Column({ name: 'user_id' })

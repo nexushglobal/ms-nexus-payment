@@ -83,17 +83,24 @@ export abstract class BasePaymentMethodService {
   protected async uploadFileToAWS(file: {
     originalname: string;
     buffer: Buffer;
+    mimetype: string;
+    size: number;
   }): Promise<string> {
     try {
       const uploadData = {
-        filename: file.originalname,
-        buffer: file.buffer,
+        file: {
+          originalname: file.originalname,
+          buffer: file.buffer,
+          mimetype: file.mimetype,
+          size: file.size,
+        },
+
         folder: 'payments/vouchers',
       };
 
       const result = await firstValueFrom(
         this.integrationClient.send(
-          { cmd: 'integration.uploadFile' },
+          { cmd: 'integration.files.uploadImage' },
           uploadData,
         ),
       );

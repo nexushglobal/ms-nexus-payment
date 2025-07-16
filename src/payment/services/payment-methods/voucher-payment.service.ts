@@ -62,7 +62,12 @@ export class VoucherPaymentService extends BasePaymentMethodService {
 
           const file = data.files[paymentDetail.fileIndex];
 
-          const imageUrl = await this.uploadFileToAWS(file);
+          const imageUrl = await this.uploadFileToAWS({
+            originalname: file.originalname,
+            buffer: file.buffer,
+            mimetype: file.mimetype,
+            size: file.size,
+          });
 
           const paymentItem = this.paymentItemRepository.create({
             payment: {

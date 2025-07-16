@@ -12,5 +12,10 @@ export interface CreatePaymentData {
   relatedEntityId: number;
   metadata: any;
   payments?: any[];
-  files?: Array<{ originalname: string; buffer: Buffer }>;
+  files?: Array<{
+    originalname: string;
+    buffer: Buffer;
+    mimetype: string;
+    size: number;
+  }>;
 }

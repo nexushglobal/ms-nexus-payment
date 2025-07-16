@@ -23,6 +23,7 @@ export class PaymentController {
 
   @MessagePattern({ cmd: 'payment.createPayment' })
   async createPayment(@Payload() data: CreatePaymentData) {
+    console.log('Creating payment with data:', data.files);
     return await this.paymentProcessorService.createPayment(data);
   }
 }
