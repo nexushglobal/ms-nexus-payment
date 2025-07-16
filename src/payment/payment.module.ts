@@ -15,6 +15,13 @@ import { PaymentProcessorService } from './services/payment-processor.service';
 import { VoucherPaymentService } from './services/payment-methods/voucher-payment.service';
 import { PointsPaymentService } from './services/payment-methods/points-payment.service';
 import { PaymentGatewayService } from './services/payment-methods/payment-gateway.service';
+import { PaymentApprovalController } from './controllers/payment-approval.controller';
+import { PaymentApprovalService } from './services/payment-approval.service';
+import { PlanUpgradeService } from './services/payment-types/plan-upgrade.service';
+import { ReconsumptionService } from './services/payment-types/reconsumption.service';
+import { MembershipPaymentService } from './services/payment-types/membership-payment.service';
+import { OrderPaymentService } from './services/payment-types/order-payment.service';
+import { UserService } from './services/user/user.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Payment, PaymentConfig, PaymentItem])],
@@ -23,6 +30,7 @@ import { PaymentGatewayService } from './services/payment-methods/payment-gatewa
     UserPaymentsController,
     PaymentDetailController,
     AdminPaymentsController,
+    PaymentApprovalController,
   ],
   providers: [
     PaymentService,
@@ -33,6 +41,13 @@ import { PaymentGatewayService } from './services/payment-methods/payment-gatewa
     VoucherPaymentService,
     PointsPaymentService,
     PaymentGatewayService,
+
+    PaymentApprovalService,
+    PlanUpgradeService,
+    ReconsumptionService,
+    MembershipPaymentService,
+    OrderPaymentService,
+    UserService,
   ],
   exports: [
     TypeOrmModule,
@@ -40,6 +55,12 @@ import { PaymentGatewayService } from './services/payment-methods/payment-gatewa
     UserPaymentsService,
     PaymentDetailService,
     AdminPaymentsService,
+    PaymentApprovalService,
+    PlanUpgradeService,
+    ReconsumptionService,
+    MembershipPaymentService,
+    OrderPaymentService,
+    UserService,
     PaymentProcessorService,
   ],
 })
