@@ -11,10 +11,10 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { PaymentMethod } from '../enum/patment-method';
+import { PaymentStatus } from '../enum/payment-status.enum';
 import { PaymentConfig } from './payment-config.entity';
 import { PaymentItem } from './payment-item.entity';
-import { PaymentStatus } from '../enum/payment-status.enum';
-import { PaymentMethod } from '../enum/patment-method';
 
 @Entity('payments')
 @Index(['userId', 'paymentConfig'])

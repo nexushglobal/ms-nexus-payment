@@ -11,6 +11,14 @@ export class OrderPaymentService {
     );
 
     // TODO: Implementar lógica de pago de órdenes en el futuro
+
     // Por ahora solo registramos que se procesó
+    return Promise.resolve();
+  }
+
+  async processOrderRejection(payment: Payment): Promise<void> {
+    this.logger.log('Order payment rejection - To be implemented', payment);
+    // TODO: Implementar en el futuro
+    return Promise.resolve();
   }
 }

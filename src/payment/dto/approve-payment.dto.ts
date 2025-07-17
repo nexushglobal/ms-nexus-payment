@@ -4,3 +4,12 @@ export class ApprovePaymentDto {
   dateOperation: string;
   numberTicket?: string;
 }
+
+export class RejectPaymentDto {
+  reason: string;
+}
+
+export class CompletePaymentDto {
+  codeOperation?: string;
+  numberTicket?: string;
+}
