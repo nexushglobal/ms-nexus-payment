@@ -61,14 +61,16 @@ export class MembershipPaymentService {
         `Procesando rechazo de pago de membresía para relatedEntityId: ${payment.relatedEntityId}`,
       );
 
+      const data = {
+        membershipId: parseInt(payment.relatedEntityId),
+        paymentId: payment.id,
+        reason: payment.rejectionReason,
+      };
+      console.log('Data to send:', data);
       await firstValueFrom(
         this.membershipClient.send(
           { cmd: 'membership.rejectMembership' },
-          {
-            membershipId: parseInt(payment.relatedEntityId),
-            paymentId: payment.id,
-            reason: payment.rejectionReason,
-          },
+          data,
         ),
       );
 
@@ -76,6 +78,7 @@ export class MembershipPaymentService {
         `Rechazo de pago de membresía procesado exitosamente para ID: ${payment.relatedEntityId}`,
       );
     } catch (error) {
+      console.error('Error al procesar rechazo de pago de membresía:', error);
       this.logger.error(
         `Error al procesar rechazo de pago de membresía: ${error.message}`,
       );

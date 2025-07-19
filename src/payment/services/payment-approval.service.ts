@@ -159,7 +159,7 @@ export class PaymentApprovalService {
       }
 
       payment.status = PaymentStatus.REJECTED;
-      payment.rejectionReason = rejectPaymentDto.reason;
+      payment.rejectionReason = rejectPaymentDto.rejectionReason;
       const user = await this.userService.getUserById(payment.userId);
 
       await queryRunner.manager.save(Payment, payment);
@@ -198,7 +198,7 @@ export class PaymentApprovalService {
       return {
         message: 'Payment rejected successfully',
         paymentId: paymentId,
-        reason: rejectPaymentDto.reason,
+        reason: rejectPaymentDto.rejectionReason,
         rejectedBy: userId,
         user,
       };

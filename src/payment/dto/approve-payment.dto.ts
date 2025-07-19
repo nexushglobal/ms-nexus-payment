@@ -6,7 +6,7 @@ export class ApprovePaymentDto {
 }
 
 export class RejectPaymentDto {
-  reason: string;
+  rejectionReason: string;
 }
 
 export class CompletePaymentDto {
