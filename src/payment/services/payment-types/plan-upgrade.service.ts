@@ -58,15 +58,16 @@ export class PlanUpgradeService {
       this.logger.log(
         `Procesando rechazo de upgrade de plan para relatedEntityId: ${payment.relatedEntityId}`,
       );
+      const data = {
+        membershipId: parseInt(payment.relatedEntityId),
+        paymentId: payment.id,
+        reason: payment.rejectionReason,
+      };
 
       await firstValueFrom(
         this.membershipClient.send(
           { cmd: 'membership.rejectPlanUpgrade' },
-          {
-            membershipId: parseInt(payment.relatedEntityId),
-            paymentId: payment.id,
-            reason: payment.rejectionReason,
-          },
+          data,
         ),
       );
 
