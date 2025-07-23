@@ -4,6 +4,7 @@ import { databaseConfig } from './config/database.config';
 import { PaymentModule } from './payment/payment.module';
 import { MigrationModule } from './migration/migration.module';
 import { CommonModule } from './common/common.module';
+import { CulqiModule } from './culqi/culqi.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { CommonModule } from './common/common.module';
     PaymentModule,
     MigrationModule,
     CommonModule,
+    CulqiModule,
   ],
 
   controllers: [],
