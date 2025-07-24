@@ -31,7 +31,7 @@ export class CustomerController {
     @Payload() createCustomerDto: CreateCustomerDto,
   ): Promise<CustomerResponse> {
     this.logger.log(
-      `📨 Recibida solicitud de creación de customer para usuario: ${createCustomerDto.userId}`,
+      `📨 solicitud de creación de customer para usuario: ${createCustomerDto.userId}`,
     );
 
     return this.customerService.createCustomer(createCustomerDto);

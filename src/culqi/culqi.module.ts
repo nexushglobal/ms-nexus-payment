@@ -1,5 +1,8 @@
 import { Module } from '@nestjs/common';
+import { ClientsModule, Transport } from '@nestjs/microservices';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { envs } from 'src/config/envs';
+import { NATS_SERVICE, USERS_SERVICE } from 'src/config/services';
 import { CardController } from './controller/card.controller';
 import { ChargeController } from './controller/charge.controller';
 import { CustomerController } from './controller/customer.controller';
@@ -27,6 +30,22 @@ import { TokenService } from './services/token.service';
       CulqiCharge,
       CulqiPlan,
       CulqiSubscription,
+    ]),
+    ClientsModule.register([
+      {
+        name: NATS_SERVICE,
+        transport: Transport.NATS,
+        options: {
+          servers: envs.NATS_SERVERS,
+        },
+      },
+      {
+        name: USERS_SERVICE,
+        transport: Transport.NATS,
+        options: {
+          servers: envs.NATS_SERVERS,
+        },
+      },
     ]),
   ],
   controllers: [

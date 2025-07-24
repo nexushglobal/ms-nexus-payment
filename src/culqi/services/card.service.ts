@@ -124,6 +124,7 @@ export class CardService {
 
   async getCard(
     userId: string,
+    culqiInfo: boolean = false,
     cardId?: string,
   ): Promise<CardResponse | CardResponse[]> {
     try {
@@ -157,8 +158,10 @@ export class CardService {
             message: 'Card no encontrada',
           });
         }
+        if (!culqiInfo) {
+          return this.mapToCardResponse(culqiCard);
+        }
 
-        // Obtener datos actuales de la card desde Culqi
         const response =
           await this.culqiHttpService.request<CulqiCardInterface>({
             endpoint: `/cards/${culqiCard.culqiCardId}`,
@@ -181,6 +184,13 @@ export class CardService {
         }
 
         // Obtener datos actuales de todas las cards
+
+        if (!culqiInfo) {
+          return culqiCards.map((culqiCard) =>
+            this.mapToCardResponse(culqiCard),
+          );
+        }
+
         const cardResponses = await Promise.all(
           culqiCards.map(async (culqiCard) => {
             try {
@@ -413,9 +423,6 @@ export class CardService {
     return {
       id: culqiCard.id,
       culqiCardId: culqiCard.culqiCardId,
-      culqiCustomerId: culqiCard.culqiCustomer.id,
-      culqiCustomerCulqiId: culqiCard.culqiCustomerCulqiId,
-      tokenId: culqiCard.tokenId,
       lastFour: culqiCard.lastFour,
       cardBrand: culqiCard.cardBrand,
       cardType: culqiCard.cardType,

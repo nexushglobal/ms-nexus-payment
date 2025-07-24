@@ -1,9 +1,12 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { RpcException } from '@nestjs/microservices';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { CulqiCustomer } from '../entities/culqi-customer.entity';
 
+import { firstValueFrom } from 'rxjs';
+import { USERS_SERVICE } from 'src/config/services';
+import { CulqiCard } from '../entities/culqi-card.entity';
 import {
   CreateCulqiCustomerRequest,
   CreateCustomerDto,
@@ -18,20 +21,22 @@ import { CulqiHttpService } from './culqi-http.service';
 @Injectable()
 export class CustomerService {
   private readonly logger = new Logger(CustomerService.name);
-
   constructor(
     @InjectRepository(CulqiCustomer)
     private readonly culqiCustomerRepository: Repository<CulqiCustomer>,
+    @InjectRepository(CulqiCard)
+    private readonly culqiCardRepository: Repository<CulqiCard>,
     private readonly culqiHttpService: CulqiHttpService,
+    @Inject(USERS_SERVICE) private readonly usersClient: ClientProxy,
   ) {}
 
   async createCustomer(data: CreateCustomerDto): Promise<CustomerResponse> {
     try {
       this.logger.log(`🔍 Creando customer para usuario: ${data.userId}`);
 
-      // Verificar si ya existe un customer para este usuario
       const existingCustomer = await this.culqiCustomerRepository.findOne({
         where: { userId: data.userId, isActive: true },
+        //cards : true, // Cargar tarjetas si existen
       });
 
       if (existingCustomer) {
@@ -41,14 +46,12 @@ export class CustomerService {
         });
       }
 
-      // Validar datos requeridos
       this.validateCustomerData(data);
 
-      // Crear customer en Culqi
       const culqiCustomerData: CreateCulqiCustomerRequest = {
         first_name: data.first_name,
         last_name: data.last_name,
-        email: data.userEmail,
+        email: data.email,
         address: data.address,
         address_city: data.address_city,
         country_code: data.country_code,
@@ -63,10 +66,9 @@ export class CustomerService {
           body: culqiCustomerData,
         });
 
-      // Guardar relación en nuestra base de datos
       const culqiCustomer = this.culqiCustomerRepository.create({
         userId: data.userId,
-        userEmail: data.userEmail,
+        userEmail: data.email,
         culqiCustomerId: response.data.id,
         metadata: data.metadata,
       });
@@ -77,6 +79,31 @@ export class CustomerService {
       this.logger.log(
         `✅ Customer creado exitosamente: ${response.data.id} para usuario ${data.userId}`,
       );
+
+      try {
+        await firstValueFrom(
+          this.usersClient.send(
+            { cmd: 'user.profile.updateContactInfo' },
+            {
+              userId: data.userId,
+              updateContactInfoDto: {
+                phone: data.phone_number,
+                address: data.address,
+                address_city: data.address_city,
+                country_code: data.country_code,
+              },
+            },
+          ),
+        );
+
+        this.logger.log(
+          `✅ Usuario ${data.userId} actualizado con customer de Culqi`,
+        );
+      } catch (error) {
+        this.logger.warn(
+          `⚠️ No se pudo actualizar el usuario ${data.userId} en el servicio de usuarios: ${error.message}`,
+        );
+      }
 
       return this.mapToCustomerResponse(savedCustomer, response.data);
     } catch (error) {
@@ -121,7 +148,6 @@ export class CustomerService {
       this.logger.log(
         `✅ Customer encontrado: ${culqiCustomer.culqiCustomerId}`,
       );
-
       return this.mapToCustomerResponse(culqiCustomer, response.data);
     } catch (error) {
       this.logger.error(
@@ -167,6 +193,8 @@ export class CustomerService {
       }
 
       // Actualizar customer en Culqi
+      console.log('culqiCustomer', culqiCustomer);
+      console.log('data', data);
       const culqiUpdateData: UpdateCulqiCustomerRequest = {
         ...data,
       };
@@ -190,6 +218,31 @@ export class CustomerService {
       this.logger.log(
         `✅ Customer actualizado exitosamente: ${culqiCustomer.culqiCustomerId}`,
       );
+
+      try {
+        await firstValueFrom(
+          this.usersClient.send(
+            { cmd: 'user.profile.updateContactInfo' },
+            {
+              userId: userId,
+              updateContactInfoDto: {
+                phone: data.phone_number,
+                address: data.address,
+                address_city: data.address_city,
+                country_code: data.country_code,
+              },
+            },
+          ),
+        );
+
+        this.logger.log(
+          `✅ Usuario ${userId} actualizado con customer de Culqi`,
+        );
+      } catch (error) {
+        this.logger.warn(
+          `⚠️ No se pudo actualizar el usuario ${userId} en el servicio de usuarios: ${error.message}`,
+        );
+      }
 
       return this.mapToCustomerResponse(culqiCustomer, response.data);
     } catch (error) {
@@ -322,23 +375,59 @@ export class CustomerService {
     }
   }
 
-  /**
-   * Mapea los datos a la respuesta esperada
-   */
-  private mapToCustomerResponse(
+  private async mapToCustomerResponse(
     culqiCustomer: CulqiCustomer,
     culqiData?: CulqiCustomerInterface,
-  ): CustomerResponse {
+  ): Promise<CustomerResponse> {
+    let cards: any = [];
+    if (culqiData && culqiData.cards && culqiData.cards.length > 0) {
+      const cardIds = culqiData.cards.map((card) => card.id);
+
+      const culqiCards = await this.culqiCardRepository.find({
+        where: {
+          culqiCardId: In(cardIds),
+          culqiCustomerCulqiId: culqiCustomer.culqiCustomerId,
+          isActive: true,
+        },
+      });
+
+      const cardMap = new Map(
+        culqiCards.map((card) => [card.culqiCardId, card]),
+      );
+
+      cards = culqiData.cards
+        .map((culqiCardData) => {
+          const localCard = cardMap.get(culqiCardData.id);
+          if (!localCard) return null;
+
+          return {
+            id: localCard.id,
+            source_id: culqiCardData.id,
+            email: culqiCardData.source.email,
+            active: culqiCardData.active,
+            card_type: culqiCardData.source.iin.card_type,
+            card_brand: culqiCardData.source.iin.card_brand,
+            last_four: culqiCardData.source.last_four,
+            card_number: culqiCardData.source.card_number,
+          };
+        })
+        .filter(Boolean); // Remover nulls
+    }
+
     return {
-      id: culqiCustomer.id,
       userId: culqiCustomer.userId,
-      userEmail: culqiCustomer.userEmail,
       culqiCustomerId: culqiCustomer.culqiCustomerId,
-      isActive: culqiCustomer.isActive,
-      metadata: culqiCustomer.metadata,
-      culqiData,
-      createdAt: culqiCustomer.createdAt,
-      updatedAt: culqiCustomer.updatedAt,
+      culqiData: {
+        email: culqiData?.email || culqiCustomer.userEmail,
+        metadata: culqiData?.metadata || {},
+        firstName: culqiData?.antifraud_details?.first_name || '',
+        lastName: culqiData?.antifraud_details?.last_name || '',
+        address: culqiData?.antifraud_details?.address || '',
+        address_city: culqiData?.antifraud_details?.address_city || '',
+        country_code: culqiData?.antifraud_details?.country_code || '',
+        phone: culqiData?.antifraud_details?.phone || '',
+        cards: cards,
+      },
     };
   }
 }

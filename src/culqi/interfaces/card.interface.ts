@@ -75,9 +75,6 @@ export interface UpdateCardDto {
 export interface CardResponse {
   id: number;
   culqiCardId: string;
-  culqiCustomerId: number;
-  culqiCustomerCulqiId: string;
-  tokenId: string;
   lastFour: string;
   cardBrand: string;
   cardType: string;
@@ -90,6 +87,7 @@ export interface CardResponse {
 
 export interface GetCardDto {
   userId: string;
+  culqiInfo?: boolean; // Si se quiere obtener la información completa de Culqi
   cardId?: string; // Opcional: si se especifica, busca una card específica
 }
 

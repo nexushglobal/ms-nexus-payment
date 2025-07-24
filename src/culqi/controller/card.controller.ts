@@ -36,7 +36,11 @@ export class CardController {
       `📨 Recibida solicitud de consulta de card(s) para usuario: ${getCardDto.userId}`,
     );
 
-    return this.cardService.getCard(getCardDto.userId, getCardDto.cardId);
+    return this.cardService.getCard(
+      getCardDto.userId,
+      getCardDto.culqiInfo,
+      getCardDto.cardId,
+    );
   }
 
   @MessagePattern({ cmd: 'culqi.updateCard' })

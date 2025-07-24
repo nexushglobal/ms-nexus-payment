@@ -1,3 +1,5 @@
+import { CulqiCard } from './card.interface';
+
 export interface CulqiCustomer {
   object: string;
   id: string;
@@ -12,7 +14,7 @@ export interface CulqiCustomer {
     phone: string;
     object: string;
   };
-  cards?: any[]; // Se incluye cuando se consulta un customer específico
+  cards?: CulqiCard[]; // Se incluye cuando se consulta un customer específico
   metadata: Record<string, any>;
 }
 
@@ -43,15 +45,14 @@ export interface CulqiCustomerDeleteResponse {
   merchant_message: string;
 }
 
-// DTOs para nuestro microservicio
 export interface CreateCustomerDto {
   userId: string;
-  userEmail: string;
-  first_name: string;
-  last_name: string;
   address: string;
   address_city: string;
   country_code: string;
+  email: string;
+  first_name: string;
+  last_name: string;
   phone_number: string;
   metadata?: Record<string, any>;
 }
@@ -67,13 +68,17 @@ export interface UpdateCustomerDto {
 }
 
 export interface CustomerResponse {
-  id: number;
   userId: string;
-  userEmail: string;
   culqiCustomerId: string;
-  isActive: boolean;
-  metadata?: Record<string, any>;
-  culqiData?: CulqiCustomer;
-  createdAt: Date;
-  updatedAt: Date;
+  culqiData?: {
+    email: string;
+    metadata: Record<string, any>;
+    firstName: string;
+    lastName: string;
+    address: string;
+    address_city: string;
+    country_code: string;
+    phone: string;
+    cards: CulqiCard[];
+  };
 }
