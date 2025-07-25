@@ -1,5 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import {
+  ChargeResponse,
+  CreateChargeDto,
+} from 'src/culqi/interfaces/charge.interface';
+import { ChargeService } from 'src/culqi/services/charge.service';
 import { CreatePaymentData } from 'src/payment/dto/create-payment.dto';
 import { PaymentItemType } from 'src/payment/enum/payment-item.enum';
 import { Repository } from 'typeorm';
@@ -19,6 +24,10 @@ export class PaymentGatewayService extends BasePaymentMethodService {
     paymentConfigRepository: Repository<PaymentConfig>,
     @InjectRepository(PaymentItem)
     paymentItemRepository: Repository<PaymentItem>,
+
+    //ChargeService can be injected here if needed
+    @Inject(ChargeService)
+    private readonly chargeService: ChargeService,
   ) {
     super(paymentRepository, paymentConfigRepository, paymentItemRepository);
   }
@@ -33,6 +42,37 @@ export class PaymentGatewayService extends BasePaymentMethodService {
       );
 
       const payment = await this.createPaymentRecord(data, paymentConfig);
+
+      const culqiChargeData: CreateChargeDto = {
+        amount: data.amount,
+        userId: data.userId,
+        userEmail: data.userEmail,
+        sourceId: data.source_id,
+        sourceType: 'card',
+        currencyCode: 'PEN',
+        capture: true,
+        description: 'Pago realizado a través de PAYMENT_GATEWAY',
+        metadata: {
+          relatedEntityType: data.relatedEntityType,
+          relatedEntityId: data.relatedEntityId,
+          userId: data.userId,
+          userEmail: data.userEmail,
+          username: data.username,
+          paymentMethod: data.paymentMethod,
+          paymentId: payment.id,
+        },
+      };
+      try {
+        const culqiCharge = (await this.chargeService.createCharge(
+          culqiChargeData,
+        )) as ChargeResponse;
+        payment.gatewayTransactionId = culqiCharge.culqiChargeId;
+        await this.paymentRepository.save(payment);
+      } catch (error) {
+        this.logger.error(`Error al crear el cargo en Culqi: ${error.message}`);
+        await this.rollbackPayment(payment.id);
+        throw error;
+      }
 
       const paymentItem = this.paymentItemRepository.create({
         payment: {
@@ -53,7 +93,7 @@ export class PaymentGatewayService extends BasePaymentMethodService {
       return {
         success: true,
         paymentId: payment.id,
-
+        gatewayTransactionId: payment.gatewayTransactionId,
         message: 'Pago creado exitosamente',
       };
     } catch (error) {
