@@ -271,12 +271,17 @@ export class CardService {
           message: 'Debe proporcionar al menos un campo para actualizar',
         });
       }
+      const culqiUpdateData: UpdateCulqiCardRequest = {
+        ...data,
+      };
 
       // Si se proporciona un nuevo token, validarlo
       if (data.tokenId) {
         const tokenValidation = await this.tokenService.validateToken(
           data.tokenId,
         );
+        culqiUpdateData.token_id = data.tokenId;
+
         if (!tokenValidation.isValid) {
           throw new RpcException({
             status: 400,
@@ -286,9 +291,6 @@ export class CardService {
       }
 
       // Actualizar card en Culqi
-      const culqiUpdateData: UpdateCulqiCardRequest = {
-        ...data,
-      };
 
       const response = await this.culqiHttpService.request<CulqiCardInterface>({
         endpoint: `/cards/${culqiCard.culqiCardId}`,

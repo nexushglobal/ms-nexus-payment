@@ -1,11 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { CreatePaymentData } from 'src/payment/dto/create-payment.dto';
+import { PaymentItemType } from 'src/payment/enum/payment-item.enum';
 import { Repository } from 'typeorm';
-import { BasePaymentMethodService } from './base-payment-method.service';
-import { Payment } from '../../entities/payment.entity';
 import { PaymentConfig } from '../../entities/payment-config.entity';
 import { PaymentItem } from '../../entities/payment-item.entity';
-import { CreatePaymentData } from 'src/payment/dto/create-payment.dto';
+import { Payment } from '../../entities/payment.entity';
+import { BasePaymentMethodService } from './base-payment-method.service';
 
 @Injectable()
 export class PaymentGatewayService extends BasePaymentMethodService {
@@ -26,11 +27,38 @@ export class PaymentGatewayService extends BasePaymentMethodService {
     this.logger.log(
       `Procesando pago PAYMENT_GATEWAY para usuario ${data.userId}`,
     );
+    try {
+      const paymentConfig = await this.validatePaymentConfig(
+        data.paymentConfig,
+      );
 
-    // TODO: Implementar lógica para método PAYMENT_GATEWAY
-    return {
-      success: false,
-      message: 'Método PAYMENT_GATEWAY no implementado aún',
-    };
+      const payment = await this.createPaymentRecord(data, paymentConfig);
+
+      const paymentItem = this.paymentItemRepository.create({
+        payment: {
+          id: payment.id,
+        },
+        itemType: PaymentItemType.PAYMENT_GATEWAY_TRANSACTION,
+        amount: data.amount,
+        bankName: 'Culqi',
+        transactionDate: new Date(),
+      });
+
+      await this.paymentItemRepository.save(paymentItem);
+
+      this.logger.log(
+        `Pago PAYMENT_GATEWAY creado exitosamente para usuario ${data.userId}`,
+      );
+
+      return {
+        success: true,
+        paymentId: payment.id,
+
+        message: 'Pago creado exitosamente',
+      };
+    } catch (error) {
+      this.logger.error(`Error al procesar pago VOUCHER: ${error.message}`);
+      throw error;
+    }
   }
 }
