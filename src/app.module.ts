@@ -1,10 +1,9 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { databaseConfig } from './config/database.config';
-import { PaymentModule } from './payment/payment.module';
-import { MigrationModule } from './migration/migration.module';
 import { CommonModule } from './common/common.module';
+import { databaseConfig } from './config/database.config';
 import { CulqiModule } from './culqi/culqi.module';
+import { PaymentModule } from './payment/payment.module';
 
 @Module({
   imports: [
@@ -12,7 +11,6 @@ import { CulqiModule } from './culqi/culqi.module';
       useFactory: () => databaseConfig,
     }),
     PaymentModule,
-    MigrationModule,
     CommonModule,
     CulqiModule,
   ],
