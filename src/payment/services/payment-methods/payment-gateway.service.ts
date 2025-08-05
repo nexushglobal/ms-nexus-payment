@@ -79,6 +79,7 @@ export class PaymentGatewayService extends BasePaymentMethodService {
           id: payment.id,
         },
         itemType: PaymentItemType.PAYMENT_GATEWAY_TRANSACTION,
+        paymentGatewayTransactionId: payment.gatewayTransactionId,
         amount: data.amount,
         bankName: 'Culqi',
         transactionDate: new Date(),
@@ -97,7 +98,9 @@ export class PaymentGatewayService extends BasePaymentMethodService {
         message: 'Pago creado exitosamente',
       };
     } catch (error) {
-      this.logger.error(`Error al procesar pago VOUCHER: ${error.message}`);
+      this.logger.error(
+        `Error al procesar pago PAYMENT_GATEWAY: ${error.message}`,
+      );
       throw error;
     }
   }

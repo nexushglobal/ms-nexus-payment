@@ -43,6 +43,13 @@ export class PaymentItem {
   pointsTransactionId: string;
 
   @Column({
+    name: 'payment_gateway_transaction_id',
+    nullable: true,
+    length: 100,
+  })
+  paymentGatewayTransactionId: string;
+
+  @Column({
     type: 'decimal',
     precision: 12,
     scale: 2,
@@ -80,8 +87,13 @@ export class PaymentItem {
 
     const hasImageData = this.url || this.urlKey;
     const hasTransactionData = this.pointsTransactionId;
+    const hasPaymentGatewayTransactionId = this.paymentGatewayTransactionId;
 
-    if (!hasImageData && !hasTransactionData) {
+    if (
+      !hasImageData &&
+      !hasTransactionData &&
+      !hasPaymentGatewayTransactionId
+    ) {
       throw new Error(
         'El item debe tener al menos una imagen o referencia de transacción',
       );
