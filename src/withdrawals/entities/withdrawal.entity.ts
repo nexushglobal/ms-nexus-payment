@@ -71,7 +71,7 @@ export class Withdrawal {
   @Column({ name: 'reviewed_by_email', nullable: true })
   reviewedByEmail: string;
 
-  @Column({ nullable: true, type: 'timestamp' })
+  @Column({ nullable: true, type: 'timestamp', name: 'reviewed_at' })
   reviewedAt: Date;
 
   @Column({ default: false, name: 'is_archived' })
