@@ -19,7 +19,7 @@ export enum WithdrawalStatus {
 }
 
 @Entity('withdrawals')
-@Index(['user', 'status'])
+@Index(['userId', 'status'])
 @Index(['createdAt'])
 export class Withdrawal {
   @PrimaryGeneratedColumn()
