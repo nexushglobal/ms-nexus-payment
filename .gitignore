@@ -3,6 +3,7 @@
 /node_modules
 /build
 
+pront.txt
 # Logs
 logs
 *.log
