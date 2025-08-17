@@ -8,13 +8,14 @@ import {
 import { firstValueFrom } from 'rxjs';
 import { envs } from 'src/config/envs';
 import { Payment } from '../../entities/payment.entity';
+import { BonusProcessingService } from '../shared/bonus-processing.service';
 
 @Injectable()
 export class PlanUpgradeService {
   private readonly logger = new Logger(PlanUpgradeService.name);
   private readonly membershipClient: ClientProxy;
 
-  constructor() {
+  constructor(private readonly bonusProcessingService: BonusProcessingService) {
     this.membershipClient = ClientProxyFactory.create({
       transport: Transport.NATS,
       options: {
@@ -22,7 +23,6 @@ export class PlanUpgradeService {
       },
     });
   }
-
   async processPlanUpgradePayment(payment: Payment): Promise<void> {
     try {
       this.logger.log(
@@ -30,7 +30,11 @@ export class PlanUpgradeService {
       );
 
       // Enviar al microservicio de membresía para aprobar el upgrade
-      await firstValueFrom(
+      const membershipResponse: {
+        fromPlanName: string;
+        planName: string;
+        binaryPoints: number;
+      } = await firstValueFrom(
         this.membershipClient.send(
           { cmd: 'membership.approvePlanUpgrade' },
           {
@@ -40,6 +44,16 @@ export class PlanUpgradeService {
             approvedAt: new Date(),
           },
         ),
+      );
+
+      await this.bonusProcessingService.processDirectReferralBonus(payment, {
+        plan: membershipResponse.planName,
+        planAnterior: membershipResponse.fromPlanName,
+      });
+
+      await this.bonusProcessingService.processBinaryVolumePoints(
+        payment,
+        membershipResponse.binaryPoints,
       );
 
       this.logger.log(
