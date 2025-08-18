@@ -36,7 +36,7 @@ export class ReconsumptionService {
       this.membershipClient.send(
         { cmd: 'membership.aproveReconsumption' },
         {
-          membershipId: parseInt(payment.relatedEntityId),
+          reconsumptionId: parseInt(payment.relatedEntityId),
           paymentId: payment.id,
           amount: payment.amount,
           approvedAt: new Date(),
@@ -56,13 +56,6 @@ export class ReconsumptionService {
         payment.amount,
       );
     }
-  }
-  catch(error) {
-    this.logger.error(`Error al procesar pago de membresía: ${error.message}`);
-    throw new RpcException({
-      status: HttpStatus.INTERNAL_SERVER_ERROR,
-      message: 'Error al procesar pago de membresía',
-    });
   }
 
   async processReconsumptionRejection(payment: Payment): Promise<void> {
