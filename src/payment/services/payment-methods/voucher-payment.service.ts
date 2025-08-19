@@ -98,7 +98,6 @@ export class VoucherPaymentService extends BasePaymentMethodService {
       return {
         success: true,
         paymentId: payment.id,
-
         message: 'Pago creado exitosamente',
       };
     } catch (error) {
