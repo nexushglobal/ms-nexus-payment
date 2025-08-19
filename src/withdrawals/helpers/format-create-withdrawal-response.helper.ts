@@ -12,6 +12,7 @@ export const formatCreateWithdrawalResponse = (withdrawal: Withdrawal) => {
       bankName: withdrawal.bankName,
       accountNumber: withdrawal.accountNumber,
       cci: withdrawal.cci,
+      pdfUrl: withdrawal.pdfUrl,
     },
   };
 };

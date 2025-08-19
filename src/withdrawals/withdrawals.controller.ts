@@ -22,7 +22,7 @@ export class WithdrawalsController {
 
   @MessagePattern({ cmd: 'withdrawals.findOne' })
   async findOneWithdrawal(@Payload() data: { id: number }) {
-    return await this.withdrawalsService.findOneWithdrawal(data.id);
+    return await this.withdrawalsService.findOneWithdrawalWithReport(data.id);
   }
 
   @MessagePattern({ cmd: 'withdrawals.findUserWithdrawals' })

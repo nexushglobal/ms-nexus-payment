@@ -1,17 +1,25 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { Injectable, Logger } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { InjectRepository } from '@nestjs/typeorm';
 import { paginate } from 'src/common/helpers/paginate.helper';
+import { PaymentService } from 'src/payment/services/payment.service';
+import { ReportsWithdrawalService } from 'src/reports/reports-withdrawal/reports-withdrawal.service';
 import { DataSource, Repository } from 'typeorm';
 import { PointsService } from '../common/services/points.service';
 import { CreateWithdrawalDto } from './dto/create-withdrawal.dto';
+import {
+  FindOneWithdrawalWithReportResponseDto,
+  PaymentInfoDto,
+} from './dto/find-one-withdrawal-with-report.dto';
+import { FindOneWithdrawalResponseDto } from './dto/find-one-withdrawal.dto';
 import { FindWithdrawalsDto } from './dto/find-withdrawals.dto';
 import { WithdrawalPoints } from './entities/wirhdrawal-points.entity';
 import { Withdrawal, WithdrawalStatus } from './entities/withdrawal.entity';
 import { formatCreateWithdrawalResponse } from './helpers/format-create-withdrawal-response.helper';
 import { formatListWithdrawalsResponse } from './helpers/format-list-withdrawal-response.helper';
 import { formatOneWithdrawalResponse } from './helpers/format-one-withdrawal-response.helper';
+import { formatOneWithdrawalWithReportResponse } from './helpers/format-one-withdrawal-with-report-response.helper';
 
 @Injectable()
 export class WithdrawalsService {
@@ -24,6 +32,9 @@ export class WithdrawalsService {
     private readonly withdrawalPointsRepository: Repository<WithdrawalPoints>,
     private readonly dataSource: DataSource,
     private readonly pointsService: PointsService,
+    private readonly paymentService: PaymentService,
+    @Inject(forwardRef(() => ReportsWithdrawalService))
+    private readonly reportsWithdrawalService: ReportsWithdrawalService,
   ) {}
 
   async createWithdrawal(createWithdrawalDto: CreateWithdrawalDto) {
@@ -40,13 +51,19 @@ export class WithdrawalsService {
         userId,
         userEmail,
         userName,
+        userDocumentNumber,
       } = createWithdrawalDto;
 
       this.logger.log(
         `Iniciando creación de retiro para usuario ${userId}, monto: ${amount}`,
       );
       const reserveForWithdrawal =
-        await this.pointsService.reserveForWithdrawal(userId, amount);
+        await this.pointsService.reserveForWithdrawal(
+          userId,
+          userName,
+          userEmail,
+          amount,
+        );
 
       if (!reserveForWithdrawal.success)
         throw new RpcException({
@@ -60,7 +77,7 @@ export class WithdrawalsService {
         userEmail,
         userName,
         amount,
-        status: WithdrawalStatus.PENDING,
+        status: WithdrawalStatus.PENDING_SIGNATURE,
         bankName,
         accountNumber,
         cci,
@@ -91,11 +108,14 @@ export class WithdrawalsService {
 
         await queryRunner.manager.save(withdrawalPointsToSave);
       }
-
+      const pdfResult = await this.reportsWithdrawalService.generateLiquidation(
+        savedWithdrawal.id,
+        userDocumentNumber,
+      );
+      savedWithdrawal.pdfUrl = pdfResult.url;
+      await queryRunner.manager.save(savedWithdrawal);
       await queryRunner.commitTransaction();
-
       this.logger.log(`Retiro creado exitosamente: ${savedWithdrawal.id}`);
-
       return formatCreateWithdrawalResponse(savedWithdrawal);
     } catch (error) {
       await queryRunner.rollbackTransaction();
@@ -158,7 +178,7 @@ export class WithdrawalsService {
     }
   }
 
-  async findOneWithdrawal(id: number): Promise<any> {
+  async findOneWithdrawal(id: number): Promise<FindOneWithdrawalResponseDto> {
     try {
       const withdrawal = await this.withdrawalRepository.findOne({
         where: { id },
@@ -179,6 +199,79 @@ export class WithdrawalsService {
         message: 'Error interno al obtener retiro',
       });
     }
+  }
+
+  async findOneWithdrawalWithReport(
+    id: number,
+  ): Promise<FindOneWithdrawalWithReportResponseDto> {
+    try {
+      const withdrawal = await this.withdrawalRepository.findOne({
+        where: { id },
+        relations: ['withdrawalPoints'],
+      });
+
+      if (!withdrawal)
+        throw new RpcException({
+          status: 404,
+          message: `Retiro con ID ${id} no encontrado`,
+        });
+      // Obtener información de pagos para todos los withdrawal points
+      const paymentsInfoMap = await this.getPaymentsInfoForWithdrawalPoints(
+        withdrawal.withdrawalPoints,
+      );
+      const formattedWithdrawal = formatOneWithdrawalWithReportResponse(
+        withdrawal,
+        paymentsInfoMap,
+      );
+
+      return formattedWithdrawal;
+    } catch (error) {
+      this.logger.error(`Error fetching withdrawal ${id}: ${error.message}`);
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 500,
+        message: 'Error interno al obtener retiro',
+      });
+    }
+  }
+
+  private async getPaymentsInfoForWithdrawalPoints(
+    withdrawalPoints: WithdrawalPoints[],
+  ): Promise<Map<string, PaymentInfoDto[]>> {
+    const paymentsInfoMap = new Map<string, PaymentInfoDto[]>();
+
+    for (const point of withdrawalPoints) {
+      try {
+        // 1. Obtener los paymentIds desde el microservicio
+        const paymentIds = await this.pointsService.getPointsTransactionById(
+          point.pointsTransaction,
+        );
+        if (paymentIds && paymentIds.length > 0) {
+          // 2. Obtener la información de los pagos desde tu entidad local
+          const payments =
+            await this.paymentService.findByIdsWithReport(paymentIds);
+          // ✅ Manejar correctamente cuando no hay payments
+          if (payments && payments.length > 0) {
+            // 3. Mapear a PaymentInfoDto
+            const paymentsInfo: PaymentInfoDto[] = payments.map((payment) => ({
+              paymentId: payment.id.toString(),
+              operationCode: payment.operationCode,
+              ticketNumber: payment.ticketNumber,
+              paymentMethod: payment.paymentMethod,
+              amount: payment.amount,
+            }));
+            paymentsInfoMap.set(point.pointsTransaction, paymentsInfo);
+          }
+        }
+      } catch (error) {
+        this.logger.warn(
+          `Error obteniendo pagos para transactionId ${point.pointsTransaction}: ${error.message}`,
+        );
+        // En caso de error, agregar array vacío para no romper la respuesta
+        paymentsInfoMap.set(point.pointsTransaction, []);
+      }
+    }
+    return paymentsInfoMap;
   }
 
   async findUserWithdrawals(userId: string, filters: FindWithdrawalsDto) {
@@ -379,6 +472,50 @@ export class WithdrawalsService {
       });
     } finally {
       await queryRunner.release();
+    }
+  }
+
+  async findAllReports(filters?: {
+    startDate?: string;
+    endDate?: string;
+    userId?: string;
+  }): Promise<Withdrawal[]> {
+    try {
+      const queryBuilder = this.withdrawalRepository
+        .createQueryBuilder('withdrawal')
+        .where('withdrawal.status = :status', {
+          status: WithdrawalStatus.APPROVED,
+        })
+        .leftJoinAndSelect('withdrawal.withdrawalPoints', 'withdrawalPoints')
+        .orderBy('withdrawal.reviewedAt', 'DESC');
+
+      if (filters?.startDate) {
+        queryBuilder.andWhere('withdrawal.reviewedAt >= :startDate', {
+          startDate: new Date(filters.startDate),
+        });
+      }
+
+      if (filters?.endDate) {
+        const endOfDay = new Date(filters.endDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        queryBuilder.andWhere('withdrawal.reviewedAt <= :endDate', {
+          endDate: endOfDay,
+        });
+      }
+
+      if (filters?.userId) {
+        queryBuilder.andWhere('withdrawal.userId = :userId', {
+          userId: filters.userId,
+        });
+      }
+
+      return await queryBuilder.getMany();
+    } catch (error) {
+      this.logger.error(`Error fetching reports: ${error.message}`);
+      throw new RpcException({
+        status: 500,
+        message: 'Error interno al obtener reportes',
+      });
     }
   }
 }

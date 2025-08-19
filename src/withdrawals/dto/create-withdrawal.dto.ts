@@ -14,6 +14,12 @@ export class CreateWithdrawalDto {
   @IsNotEmpty({ message: 'El email del usuario es requerido' })
   userEmail: string;
 
+  @IsString({
+    message: 'El número de documento del usuario es una cadena de texto',
+  })
+  @IsNotEmpty({ message: 'El número de documento del usuario es requerido' })
+  userDocumentNumber: string;
+
   @IsString({ message: 'El nombre del banco es una cadena de texto' })
   @IsNotEmpty({ message: 'El nombre del banco es requerido' })
   bankName: string;

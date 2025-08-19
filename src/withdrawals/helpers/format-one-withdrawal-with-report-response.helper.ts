@@ -1,6 +1,15 @@
+import {
+  FindOneWithdrawalWithReportResponseDto,
+  PaymentInfoDto,
+  WithdrawalPointWithReportDto,
+} from '../dto/find-one-withdrawal-with-report.dto';
+import { WithdrawalPoints } from '../entities/wirhdrawal-points.entity';
 import { Withdrawal } from '../entities/withdrawal.entity';
 
-export const formatOneWithdrawalResponse = (withdrawal: Withdrawal) => {
+export function formatOneWithdrawalWithReportResponse(
+  withdrawal: Withdrawal,
+  paymentsInfoMap: Map<string, PaymentInfoDto[]>,
+): FindOneWithdrawalWithReportResponseDto {
   return {
     id: withdrawal.id,
     amount: withdrawal.amount,
@@ -10,14 +19,10 @@ export const formatOneWithdrawalResponse = (withdrawal: Withdrawal) => {
     rejectionReason: withdrawal.rejectionReason,
     isArchived: withdrawal.isArchived,
     metadata: withdrawal.metadata,
-
-    // Información bancaria
     bankName: withdrawal.bankName,
     accountNumber: withdrawal.accountNumber,
     cci: withdrawal.cci,
     pdfUrl: withdrawal.pdfUrl,
-
-    // Información del usuario (usando datos desnormalizados)
     user: {
       id: withdrawal.userId,
       email: withdrawal.userEmail,
@@ -32,35 +37,27 @@ export const formatOneWithdrawalResponse = (withdrawal: Withdrawal) => {
         cci: withdrawal.cci,
       },
     },
-
-    // Información del revisor (usando datos desnormalizados)
     reviewedBy: withdrawal.reviewedById
       ? {
           id: withdrawal.reviewedById,
           email: withdrawal.reviewedByEmail,
         }
       : null,
-
-    // Puntos de retiro (adaptado para nueva estructura)
-    withdrawalPoints:
-      withdrawal.withdrawalPoints?.map((wp) => {
-        return {
-          id: wp.id,
-          amountUsed: wp.amountUsed,
-          pointsTransactionId: wp.pointsTransaction,
-          pointsAmount: wp.pointsAmount,
-          metadata: wp.metadata,
-          createdAt: wp.createdAt,
-
-          // Nota: En microservicios, la información detallada de puntos
-          // se obtendría del microservicio de puntos usando pointsTransactionId
-          points: {
-            transactionId: wp.pointsTransaction,
-            amount: wp.pointsAmount,
-            // Los demás campos requerirían consulta al microservicio de puntos
-            // id, type, withdrawnAmount, pendingAmount, status, etc.
-          },
-        };
-      }) || [],
+    withdrawalPoints: withdrawal.withdrawalPoints.map(
+      (point: WithdrawalPoints): WithdrawalPointWithReportDto => ({
+        id: point.id,
+        amountUsed: point.amountUsed,
+        pointsTransactionId: point.id.toString(),
+        pointsAmount: point.pointsAmount,
+        metadata: point.metadata,
+        createdAt: point.createdAt,
+        points: {
+          transactionId: point.pointsTransaction,
+          amount: point.amountUsed,
+        },
+        // AQUÍ está la diferencia: incluye información de pagos
+        paymentsInfo: paymentsInfoMap.get(point.pointsTransaction) || [],
+      }),
+    ),
   };
-};
+}

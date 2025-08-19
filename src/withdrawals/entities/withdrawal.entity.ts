@@ -13,6 +13,7 @@ import {
 import { WithdrawalPoints } from './wirhdrawal-points.entity';
 
 export enum WithdrawalStatus {
+  PENDING_SIGNATURE = 'PENDING_SIGNATURE',
   PENDING = 'PENDING',
   APPROVED = 'APPROVED',
   REJECTED = 'REJECTED',
@@ -90,6 +91,12 @@ export class Withdrawal {
   // Metadatos adicionales
   @Column({ type: 'json', nullable: true })
   metadata: Record<string, any>;
+
+  // URL del PDF del reporte de liquidación
+  @Column({ name: 'pdf_url', nullable: true })
+  pdfUrl: string;
+
+  user: any;
 
   @BeforeInsert()
   @BeforeUpdate()

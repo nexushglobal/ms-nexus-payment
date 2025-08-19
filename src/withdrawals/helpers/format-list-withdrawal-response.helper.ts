@@ -11,6 +11,7 @@ export const formatListWithdrawalsResponse = (withdrawals: Withdrawal[]) => {
     // Información bancaria básica
     bankName: withdrawal.bankName,
     accountNumber: withdrawal.accountNumber,
+    pdfUrl: withdrawal.pdfUrl,
 
     // Información del usuario (desnormalizada)
     user: {

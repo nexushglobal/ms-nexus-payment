@@ -23,13 +23,15 @@ export class PointsService {
 
   async reserveForWithdrawal(
     userId: string,
+    userName: string,
+    userEmail: string,
     amount: number,
   ): Promise<ReserveForWithdrawal> {
     return await firstValueFrom(
       this.pointsClient
         .send(
           { cmd: 'pointsTransaction.reserveForWithdrawal' },
-          { userId, amount },
+          { userId, userName, userEmail, amount },
         )
         .pipe(
           catchError((error) => {
@@ -142,6 +144,47 @@ export class PointsService {
             rejectionReason,
             withdrawalPoints,
           },
+        )
+        .pipe(
+          catchError((error) => {
+            if (error instanceof RpcException) throw error;
+            const err = error as {
+              message?: string | string[];
+              status?: number;
+              service?: string;
+            };
+            // Determinamos el mensaje del error
+            let errorMessage: string[];
+            if (Array.isArray(err?.message)) {
+              errorMessage = err.message;
+            } else if (typeof err?.message === 'string') {
+              errorMessage = [err.message];
+            } else {
+              errorMessage = ['Unknown RPC Error'];
+            }
+            const statusCode =
+              typeof err?.status === 'number'
+                ? err.status
+                : HttpStatus.INTERNAL_SERVER_ERROR;
+            const service = err?.service || 'ms-nexus-gateway';
+            throw new RpcException({
+              status: statusCode,
+              message: errorMessage,
+              service,
+            });
+          }),
+        ),
+    );
+  }
+
+  async getPointsTransactionById(
+    pointsTransactionId: string,
+  ): Promise<{ paymentId: string }[]> {
+    return await firstValueFrom(
+      this.pointsClient
+        .send(
+          { cmd: 'pointsTransactionPayments.findByTransactionId' },
+          { transactionId: pointsTransactionId },
         )
         .pipe(
           catchError((error) => {

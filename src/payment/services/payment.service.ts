@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Payment } from '../entities/payment.entity';
 
 @Injectable()
@@ -51,6 +51,7 @@ export class PaymentService {
     [id: number]: {
       id: number;
       operationCode?: string;
+      ticketNumber?: string;
       paymentMethod: string;
       status: string;
       amount: number;
@@ -82,5 +83,17 @@ export class PaymentService {
       this.logger.error(`Error buscando pagos por IDs:`, error);
       return {};
     }
+  }
+
+  async findByIdsWithReport(
+    paymentsIds: { paymentId: string }[],
+  ): Promise<Payment[]> {
+    const payments = await this.paymentRepository.find({
+      where: {
+        id: In(paymentsIds.map((p) => parseInt(p.paymentId))),
+      },
+      // ✅ SIN SELECT - cargar TODA la entidad
+    });
+    return payments;
   }
 }
