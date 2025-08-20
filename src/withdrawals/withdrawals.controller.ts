@@ -55,4 +55,9 @@ export class WithdrawalsController {
       rejectWithdrawalDto.rejectionReason,
     );
   }
+
+  @MessagePattern({ cmd: 'withdrawals.checkPendingWithdrawals' })
+  async checkPendingWithdrawals(@Payload() data: { userId: string }) {
+    return await this.withdrawalsService.checkPendingWithdrawals(data.userId);
+  }
 }

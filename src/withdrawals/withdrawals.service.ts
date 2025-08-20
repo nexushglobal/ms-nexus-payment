@@ -518,4 +518,54 @@ export class WithdrawalsService {
       });
     }
   }
+
+  async checkPendingWithdrawals(userId: string): Promise<{
+    hasPendingWithdrawals: boolean;
+    pendingCount: number;
+    pendingWithdrawals?: any[];
+  }> {
+    try {
+      this.logger.log(`🔍 Verificando retiros pendientes para usuario: ${userId}`);
+
+      const pendingWithdrawals = await this.withdrawalRepository.find({
+        where: {
+          userId,
+          status: WithdrawalStatus.PENDING,
+        },
+        select: ['id', 'amount', 'status', 'createdAt'],
+        order: { createdAt: 'DESC' },
+      });
+
+      const pendingSignatureWithdrawals = await this.withdrawalRepository.find({
+        where: {
+          userId,
+          status: WithdrawalStatus.PENDING_SIGNATURE,
+        },
+        select: ['id', 'amount', 'status', 'createdAt'],
+        order: { createdAt: 'DESC' },
+      });
+
+      const allPending = [...pendingWithdrawals, ...pendingSignatureWithdrawals];
+      const hasPendingWithdrawals = allPending.length > 0;
+
+      this.logger.log(
+        `✅ Usuario ${userId} tiene ${allPending.length} retiros pendientes`,
+      );
+
+      return {
+        hasPendingWithdrawals,
+        pendingCount: allPending.length,
+        pendingWithdrawals: allPending,
+      };
+    } catch (error) {
+      this.logger.error(
+        `❌ Error verificando retiros pendientes para usuario ${userId}:`,
+        error,
+      );
+      throw new RpcException({
+        status: 500,
+        message: 'Error interno al verificar retiros pendientes',
+      });
+    }
+  }
 }
