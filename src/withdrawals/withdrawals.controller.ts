@@ -72,4 +72,9 @@ export class WithdrawalsController {
       multerFile,
     );
   }
+
+  @MessagePattern({ cmd: 'withdrawals.checkPendingWithdrawals' })
+  async checkPendingWithdrawals(@Payload() data: { userId: string }) {
+    return await this.withdrawalsService.checkPendingWithdrawals(data.userId);
+  }
 }

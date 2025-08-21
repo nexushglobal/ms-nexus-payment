@@ -1,11 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { CreatePaymentData } from 'src/payment/dto/create-payment.dto';
 import { Repository } from 'typeorm';
 import { PaymentConfig } from '../../entities/payment-config.entity';
 import { PaymentItem } from '../../entities/payment-item.entity';
 import { Payment } from '../../entities/payment.entity';
 import { BasePaymentMethodService } from './base-payment-method.service';
-import { CreatePaymentData } from 'src/payment/dto/create-payment.dto';
 
 @Injectable()
 export class PointsPaymentService extends BasePaymentMethodService {
