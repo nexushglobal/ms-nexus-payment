@@ -7,4 +7,7 @@ export class GenerateLiquidationDto {
 
   @IsNotEmpty({ message: 'El número de documento del usuario es obligatorio' })
   userDocumentNumber: string;
+
+  @IsNotEmpty({ message: 'La razón social del usuario es obligatorio' })
+  userRazonSocial: string;
 }

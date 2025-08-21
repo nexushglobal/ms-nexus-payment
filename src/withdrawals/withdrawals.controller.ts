@@ -1,9 +1,11 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
+import { createMulterFile } from 'src/reports/helpers/create-multer-file.helper';
 import { ApproveWithdrawalDto } from './dto/approve-withdrawal.dto';
 import { CreateWithdrawalDto } from './dto/create-withdrawal.dto';
 import { FindWithdrawalsDto } from './dto/find-withdrawals.dto';
 import { RejectWithdrawalDto } from './dto/reject-withdrawal.dto';
+import { SignWithdrawalReportDto } from './dto/sign-withdrawal-report.dto';
 import { WithdrawalsService } from './withdrawals.service';
 
 @Controller()
@@ -53,6 +55,21 @@ export class WithdrawalsController {
       rejectWithdrawalDto.reviewerId,
       rejectWithdrawalDto.reviewerEmail,
       rejectWithdrawalDto.rejectionReason,
+    );
+  }
+
+  @MessagePattern({ cmd: 'withdrawals.signReport' })
+  async signWithdrawalReport(
+    @Payload() signWithdrawalReportDto: SignWithdrawalReportDto,
+  ) {
+    const { withdrawalId, userDocumentNumber, userRazonSocial, file } =
+      signWithdrawalReportDto;
+    const multerFile = createMulterFile(file, file.buffer as Buffer);
+    return await this.withdrawalsService.signWithdrawalReport(
+      withdrawalId,
+      userDocumentNumber,
+      userRazonSocial,
+      multerFile,
     );
   }
 }

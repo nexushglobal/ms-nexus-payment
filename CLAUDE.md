@@ -41,6 +41,12 @@ pnpm run test:e2e
 
 # Generate test coverage
 pnpm run test:cov
+
+# Run tests in debug mode
+pnpm run test:debug
+
+# Run specific test file
+pnpm run test -- --testPathPattern=filename
 ```
 
 ### Code Quality
@@ -63,6 +69,7 @@ pnpm run build
 - **PaymentModule**: Main payment processing logic with multiple payment types and methods
 - **CulqiModule**: Integration with Culqi payment gateway (cards, charges, customers, plans, subscriptions)
 - **WithdrawalsModule**: Handles point withdrawals and approval workflows
+- **ReportsModule**: PDF report generation for withdrawals using PDFMake
 - **CommonModule**: Shared utilities, DTOs, and services
 
 ### Service Architecture

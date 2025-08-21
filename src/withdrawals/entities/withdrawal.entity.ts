@@ -96,6 +96,10 @@ export class Withdrawal {
   @Column({ name: 'pdf_url', nullable: true })
   pdfUrl: string;
 
+  // URL del PDF del reporte de liquidación con firma
+  @Column({ name: 'signed_pdf_url', nullable: true })
+  signedPdfUrl: string;
+
   user: any;
 
   @BeforeInsert()

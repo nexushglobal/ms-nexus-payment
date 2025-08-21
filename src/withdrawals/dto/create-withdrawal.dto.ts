@@ -20,6 +20,10 @@ export class CreateWithdrawalDto {
   @IsNotEmpty({ message: 'El número de documento del usuario es requerido' })
   userDocumentNumber: string;
 
+  @IsString({ message: 'La razon socual es una cadena de texto' })
+  @IsNotEmpty({ message: 'La razon socual es requerida' })
+  userRazonSocial: string;
+
   @IsString({ message: 'El nombre del banco es una cadena de texto' })
   @IsNotEmpty({ message: 'El nombre del banco es requerido' })
   bankName: string;

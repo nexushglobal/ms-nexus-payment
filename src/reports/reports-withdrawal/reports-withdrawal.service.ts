@@ -18,6 +18,8 @@ export class ReportsWithdrawalService {
   async generateLiquidation(
     withdrawalId: number,
     userDocumentNumber: string,
+    userRazonSocial: string,
+    commissionistSignatureImage?: string,
   ): Promise<{ url: string }> {
     const withdrawal =
       await this.withdrawalsService.findOneWithdrawalWithReport(withdrawalId);
@@ -27,6 +29,8 @@ export class ReportsWithdrawalService {
       liquidationNumber,
       withdrawal,
       userDocumentNumber,
+      userRazonSocial,
+      commissionistSignatureImage,
     });
     const doc = this.printerService.createPdf(docDefinition);
     const pdfBuffer = await pdfToBuffer(doc);

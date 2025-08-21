@@ -11,10 +11,11 @@ export class ReportsWithdrawalController {
 
   @MessagePattern({ cmd: 'reportsWithdrawal.generateLiquidation' })
   async generateLiquidation(@Payload() data: GenerateLiquidationDto) {
-    const { withdrawalId, userDocumentNumber } = data;
+    const { withdrawalId, userDocumentNumber, userRazonSocial } = data;
     return await this.reportsWithdrawalService.generateLiquidation(
       withdrawalId,
       userDocumentNumber,
+      userRazonSocial,
     );
   }
 }

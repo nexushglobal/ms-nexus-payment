@@ -52,6 +52,7 @@ export class WithdrawalsService {
         userEmail,
         userName,
         userDocumentNumber,
+        userRazonSocial,
       } = createWithdrawalDto;
 
       this.logger.log(
@@ -108,25 +109,35 @@ export class WithdrawalsService {
 
         await queryRunner.manager.save(withdrawalPointsToSave);
       }
-      const pdfResult = await this.reportsWithdrawalService.generateLiquidation(
-        savedWithdrawal.id,
-        userDocumentNumber,
-      );
-      savedWithdrawal.pdfUrl = pdfResult.url;
-      await queryRunner.manager.save(savedWithdrawal);
+
       await queryRunner.commitTransaction();
+      await queryRunner.release();
+      try {
+        const pdfResult =
+          await this.reportsWithdrawalService.generateLiquidation(
+            savedWithdrawal.id,
+            userDocumentNumber,
+            userRazonSocial,
+          );
+        savedWithdrawal.pdfUrl = pdfResult.url;
+        await this.withdrawalRepository.save(savedWithdrawal);
+      } catch (pdfError) {
+        this.logger.error(
+          `Error al generar PDF para retiro ${savedWithdrawal.id}: ${pdfError.message}`,
+        );
+      }
+
       this.logger.log(`Retiro creado exitosamente: ${savedWithdrawal.id}`);
       return formatCreateWithdrawalResponse(savedWithdrawal);
     } catch (error) {
       await queryRunner.rollbackTransaction();
+      await queryRunner.release();
       this.logger.error(`Error al crear retiro: ${error.message}`);
       if (error instanceof RpcException) throw error;
       throw new RpcException({
         status: 500,
         message: 'Error interno al crear retiro',
       });
-    } finally {
-      await queryRunner.release();
     }
   }
 
@@ -516,6 +527,66 @@ export class WithdrawalsService {
         status: 500,
         message: 'Error interno al obtener reportes',
       });
+    }
+  }
+
+  async signWithdrawalReport(
+    withdrawalId: number,
+    userDocumentNumber: string,
+    userRazonSocial: string,
+    signatureFile: Express.Multer.File,
+  ): Promise<{ url: string; withdrawalId: number }> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+    try {
+      const withdrawal = await this.withdrawalRepository.findOne({
+        where: { id: withdrawalId },
+      });
+      if (!withdrawal)
+        throw new RpcException({
+          status: 404,
+          message: `Retiro con ID ${withdrawalId} no encontrado`,
+        });
+
+      if (withdrawal.status !== WithdrawalStatus.PENDING_SIGNATURE)
+        throw new RpcException({
+          status: 400,
+          message: `El retiro no está en estado PENDING_SIGNATURE. Estado actual: ${withdrawal.status}`,
+        });
+
+      // 1. Convertir imagen a base64 para usar directamente en el PDF
+      const imageBase64 = `data:${signatureFile.mimetype};base64,${signatureFile.buffer.toString('base64')}`;
+      // 2. Generar el reporte con la imagen de firma
+      const pdfResult = await this.reportsWithdrawalService.generateLiquidation(
+        withdrawalId,
+        userDocumentNumber,
+        userRazonSocial,
+        imageBase64,
+      );
+      withdrawal.signedPdfUrl = pdfResult.url;
+      withdrawal.status = WithdrawalStatus.PENDING;
+      await queryRunner.manager.save(withdrawal);
+      await queryRunner.commitTransaction();
+
+      this.logger.log(
+        `Reporte firmado generado exitosamente para retiro: ${withdrawalId}`,
+      );
+
+      return {
+        url: pdfResult.url,
+        withdrawalId: withdrawal.id,
+      };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      this.logger.error(`Error al firmar reporte de retiro: ${error.message}`);
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 500,
+        message: 'Error interno al firmar reporte de retiro',
+      });
+    } finally {
+      await queryRunner.release();
     }
   }
 }

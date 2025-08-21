@@ -7,9 +7,11 @@ interface LiquidationOptions {
   liquidationNumber: string;
   withdrawal: FindOneWithdrawalWithReportResponseDto;
   userDocumentNumber: string;
+  userRazonSocial: string;
   companyName?: string;
   managerName?: string;
   accountantName?: string;
+  commissionistSignatureImage?: string;
 }
 
 export const getLiquidationReport = (
@@ -19,8 +21,10 @@ export const getLiquidationReport = (
     liquidationNumber,
     withdrawal,
     userDocumentNumber,
+    userRazonSocial,
     managerName = 'CESAR HUERTAS ANAYA',
     accountantName = 'CONTABILIDAD',
+    commissionistSignatureImage,
   } = options;
 
   // Fecha actual (no createdAt)
@@ -34,7 +38,7 @@ export const getLiquidationReport = (
   withdrawal.withdrawalPoints?.forEach((point) => {
     const metadata = point.metadata || {};
     const tipoTransaccion = metadata.tipo_transaccion || 'RETIRO DE PUNTOS';
-    const planMembresia = metadata.plan_membresia || {};
+    // const planMembresia = metadata.plan_membresia || {};
 
     totalAmount += point.amountUsed;
 
@@ -53,10 +57,6 @@ export const getLiquidationReport = (
       tipoTransaccion === 'DIRECT_BONUS' && metadata.fecha_creacion
         ? formatDate(metadata.fecha_creacion as Date)
         : '';
-
-    const porcentaje = planMembresia.porcentaje_comision
-      ? `${planMembresia.porcentaje_comision}%`
-      : '';
 
     const concepto =
       tipoTransaccion === 'DIRECT_BONUS' ? 'COMISION' : tipoTransaccion;
@@ -77,11 +77,9 @@ export const getLiquidationReport = (
       { text: ticketNumber, fontSize: 8, alignment: 'center' },
       { text: fecha, fontSize: 8, alignment: 'center' },
       { text: amountPaid.toFixed(2), fontSize: 8, alignment: 'center' }, // IMPORTE: monto del pago
-      { text: withdrawal.bankName || '', fontSize: 8, alignment: 'center' },
+      { text: 'Interbank', fontSize: 8, alignment: 'center' },
       { text: operationCode, fontSize: 8, alignment: 'center' },
-      { text: porcentaje, fontSize: 8, alignment: 'center' },
       { text: point.amountUsed.toFixed(2), fontSize: 8, alignment: 'center' }, // COMISION: monto de puntos
-      { text: '', fontSize: 8, alignment: 'center' },
     ]);
   });
 
@@ -106,11 +104,11 @@ export const getLiquidationReport = (
         ?.filter((p) => p.metadata?.tipo_transaccion === 'BINARY_COMMISSION')
         .reduce((sum, p) => sum + p.amountUsed, 0) || 0;
 
-    const planMembresia =
-      withdrawal.withdrawalPoints?.[0]?.metadata?.plan_membresia || {};
-    const porcentaje = planMembresia.porcentaje_comision
-      ? `${planMembresia.porcentaje_comision}%`
-      : '';
+    // const planMembresia =
+    //   withdrawal.withdrawalPoints?.[0]?.metadata?.plan_membresia || {};
+    // const porcentaje = planMembresia.porcentaje_comision
+    //   ? `${planMembresia.porcentaje_comision}%`
+    //   : '';
 
     tableRows.push([
       {
@@ -126,11 +124,9 @@ export const getLiquidationReport = (
         fontSize: 8,
         alignment: 'center',
       }, // IMPORTE: suma de pagos
-      { text: withdrawal.bankName || '', fontSize: 8, alignment: 'center' },
+      { text: 'Interbank', fontSize: 8, alignment: 'center' },
       { text: '', fontSize: 8, alignment: 'center' },
-      { text: porcentaje, fontSize: 8, alignment: 'center' },
       { text: binaryPointsTotal.toFixed(2), fontSize: 8, alignment: 'center' }, // COMISION: suma de puntos
-      { text: '', fontSize: 8, alignment: 'center' },
     ]);
   }
 
@@ -152,12 +148,12 @@ export const getLiquidationReport = (
           { text: '', width: '*' },
           {
             text: 'NEXUS',
-            fontSize: 14,
+            fontSize: 24,
             bold: true,
             color: 'white',
             background: '#2c5530',
             alignment: 'center',
-            margin: [5, 3, 5, 3] as [number, number, number, number],
+            margin: [15, 8, 15, 8] as [number, number, number, number],
             width: 'auto',
           },
         ],
@@ -179,7 +175,7 @@ export const getLiquidationReport = (
           {
             text: [
               { text: 'RUC ', fontSize: 9, bold: true },
-              { text: userDocumentNumber, fontSize: 9 },
+              { text: userDocumentNumber ?? '', fontSize: 9 },
             ],
             width: '*',
           },
@@ -200,9 +196,7 @@ export const getLiquidationReport = (
         text: [
           { text: 'RAZÓN SOCIAL ', fontSize: 9, bold: true },
           {
-            text: withdrawal.user?.personalInfo
-              ? `${withdrawal.user.personalInfo.firstName} ${withdrawal.user.personalInfo.lastName}`
-              : 'N/A',
+            text: userRazonSocial ?? '',
             fontSize: 9,
           },
         ],
@@ -213,16 +207,14 @@ export const getLiquidationReport = (
       {
         table: {
           widths: [
-            '5%',
-            '16%',
-            '9%',
-            '9%',
-            '11%',
-            '11%',
-            '7%',
-            '5%',
-            '11%',
-            '16%',
+            '6%', // ITEM (era 5%)
+            '20%', // CONCEPTO (era 16%)
+            '12%', // N°BOLETA (era 9%)
+            '11%', // FECHA (era 9%)
+            '13%', // IMPORTE (era 11%)
+            '14%', // BANCO (era 11%)
+            '9%', // N° OP (era 7%)
+            '15%', // COMISION (era 11%)
           ],
           headerRows: 1,
           body: [
@@ -244,15 +236,8 @@ export const getLiquidationReport = (
               { text: 'IMPORTE', fontSize: 8, bold: true, alignment: 'center' },
               { text: 'BANCO', fontSize: 8, bold: true, alignment: 'center' },
               { text: 'N° OP', fontSize: 8, bold: true, alignment: 'center' },
-              { text: '%', fontSize: 8, bold: true, alignment: 'center' },
               {
                 text: 'COMISION',
-                fontSize: 8,
-                bold: true,
-                alignment: 'center',
-              },
-              {
-                text: 'SUSTENTO',
                 fontSize: 8,
                 bold: true,
                 alignment: 'center',
@@ -341,23 +326,45 @@ export const getLiquidationReport = (
         columns: [
           {
             stack: [
+              // Espacio reservado EXACTO de 60px - SIEMPRE el mismo
+              {
+                text: commissionistSignatureImage ? '' : ' ',
+                fontSize: 1,
+                margin: [0, 60, 0, 0] as [number, number, number, number], // Exactamente 60px de espacio
+              },
+              // Imagen superpuesta si existe
+              ...(commissionistSignatureImage
+                ? [
+                    {
+                      image: commissionistSignatureImage,
+                      width: 120,
+                      height: 60,
+                      alignment: 'center' as const,
+                      margin: [0, -60, 0, 0] as [
+                        number,
+                        number,
+                        number,
+                        number,
+                      ], // Negative margin para posicionar encima
+                    },
+                  ]
+                : []),
+              // SIEMPRE mostrar la línea
               {
                 text: '___________________________',
-                alignment: 'center',
+                alignment: 'center' as const,
                 fontSize: 8,
               },
               {
                 text: 'COMISIONISTA',
-                alignment: 'center',
+                alignment: 'center' as const,
                 fontSize: 9,
                 bold: true,
                 margin: [0, 5, 0, 0] as [number, number, number, number],
               },
               {
-                text: withdrawal.user?.personalInfo
-                  ? `${withdrawal.user.personalInfo.firstName} ${withdrawal.user.personalInfo.lastName}`
-                  : 'N/A',
-                alignment: 'center',
+                text: userRazonSocial ?? '',
+                alignment: 'center' as const,
                 fontSize: 8,
                 margin: [0, 5, 0, 0] as [number, number, number, number],
               },
@@ -366,21 +373,28 @@ export const getLiquidationReport = (
           },
           {
             stack: [
+              // Espacio reservado EXACTO de 60px - igual que comisionista
+              {
+                text: ' ',
+                fontSize: 1,
+                margin: [0, 60, 0, 0] as [number, number, number, number], // Exactamente 60px de espacio
+              },
+              // SIEMPRE mostrar la línea
               {
                 text: '___________________________',
-                alignment: 'center',
+                alignment: 'center' as const,
                 fontSize: 8,
               },
               {
                 text: managerName,
-                alignment: 'center',
+                alignment: 'center' as const,
                 fontSize: 9,
                 bold: true,
                 margin: [0, 5, 0, 0] as [number, number, number, number],
               },
               {
                 text: 'GERENTE GENERAL',
-                alignment: 'center',
+                alignment: 'center' as const,
                 fontSize: 8,
                 margin: [0, 5, 0, 0] as [number, number, number, number],
               },
@@ -389,14 +403,21 @@ export const getLiquidationReport = (
           },
           {
             stack: [
+              // Espacio reservado EXACTO de 60px - igual que comisionista
+              {
+                text: ' ',
+                fontSize: 1,
+                margin: [0, 60, 0, 0] as [number, number, number, number], // Exactamente 60px de espacio
+              },
+              // SIEMPRE mostrar la línea
               {
                 text: '___________________________',
-                alignment: 'center',
+                alignment: 'center' as const,
                 fontSize: 8,
               },
               {
                 text: accountantName,
-                alignment: 'center',
+                alignment: 'center' as const,
                 fontSize: 9,
                 bold: true,
                 margin: [0, 5, 0, 0] as [number, number, number, number],
