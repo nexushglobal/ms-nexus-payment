@@ -299,7 +299,7 @@ export class WithdrawalsService {
 
       const items = await queryBuilder.getMany();
       const itemsWithoutTimestamps = items.map(
-        ({ createdAt, updatedAt, ...item }) => item,
+        ({ updatedAt, ...item }) => item,
       );
       return paginate(itemsWithoutTimestamps, { page, limit });
     } catch (error) {
@@ -525,7 +525,9 @@ export class WithdrawalsService {
     pendingWithdrawals?: any[];
   }> {
     try {
-      this.logger.log(`🔍 Verificando retiros pendientes para usuario: ${userId}`);
+      this.logger.log(
+        `🔍 Verificando retiros pendientes para usuario: ${userId}`,
+      );
 
       const pendingWithdrawals = await this.withdrawalRepository.find({
         where: {
@@ -545,7 +547,10 @@ export class WithdrawalsService {
         order: { createdAt: 'DESC' },
       });
 
-      const allPending = [...pendingWithdrawals, ...pendingSignatureWithdrawals];
+      const allPending = [
+        ...pendingWithdrawals,
+        ...pendingSignatureWithdrawals,
+      ];
       const hasPendingWithdrawals = allPending.length > 0;
 
       this.logger.log(
