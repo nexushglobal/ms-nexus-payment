@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { CommonModule } from 'src/common/common.module';
 import { CulqiModule } from 'src/culqi/culqi.module';
 import { AdminPaymentsController } from './controllers/admin-payments.controller';
 import { PaymentApprovalController } from './controllers/payment-approval.controller';
@@ -28,6 +29,7 @@ import { UserService } from './services/user/user.service';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Payment, PaymentConfig, PaymentItem]),
+    CommonModule,
     CulqiModule,
   ],
   controllers: [
