@@ -56,6 +56,10 @@ export class ReconsumptionService {
         payment.amount,
       );
     }
+    await this.bonusProcessingService.processMonthlyVolumePoints(
+      payment,
+      payment.amount,
+    );
   }
 
   async processReconsumptionRejection(payment: Payment): Promise<void> {

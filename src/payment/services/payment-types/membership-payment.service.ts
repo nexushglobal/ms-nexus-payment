@@ -60,6 +60,11 @@ export class MembershipPaymentService {
         payment,
         membershipResponse.binaryPoints,
       );
+
+      await this.bonusProcessingService.processMonthlyVolumePoints(
+        payment,
+        membershipResponse.binaryPoints,
+      );
     } catch (error) {
       this.logger.error(
         `Error al procesar pago de membresía: ${error.message}`,

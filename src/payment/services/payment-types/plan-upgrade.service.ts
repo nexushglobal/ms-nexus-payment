@@ -46,16 +46,23 @@ export class PlanUpgradeService {
         ),
       );
 
-      await this.bonusProcessingService.processDirectReferralBonus(payment, {
-        plan: membershipResponse.planName,
-        planAnterior: membershipResponse.fromPlanName,
-      });
+      await this.bonusProcessingService.processDirectReferralBonus(
+        payment,
+        {
+          plan: membershipResponse.planName,
+          planAnterior: membershipResponse.fromPlanName,
+        },
+        true,
+      );
 
       await this.bonusProcessingService.processBinaryVolumePoints(
         payment,
         membershipResponse.binaryPoints,
       );
-
+      await this.bonusProcessingService.processMonthlyVolumePoints(
+        payment,
+        membershipResponse.binaryPoints,
+      );
       this.logger.log(
         `Upgrade de plan procesado exitosamente para ID: ${payment.relatedEntityId}`,
       );

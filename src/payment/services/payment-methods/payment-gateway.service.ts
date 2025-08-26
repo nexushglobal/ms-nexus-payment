@@ -44,7 +44,7 @@ export class PaymentGatewayService extends BasePaymentMethodService {
       const payment = await this.createPaymentRecord(data, paymentConfig);
 
       const culqiChargeData: CreateChargeDto = {
-        amount: data.amount,
+        amount: data.amount * 100, // Convertir a centavos
         userId: data.userId,
         userEmail: data.userEmail,
         sourceId: data.source_id,

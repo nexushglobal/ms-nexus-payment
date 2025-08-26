@@ -39,6 +39,7 @@ export class BonusProcessingService {
   async processDirectReferralBonus(
     payment: Payment,
     customMetadata: Record<string, any> = {},
+    isUpgrade: boolean = false,
   ): Promise<void> {
     try {
       this.logger.log(
@@ -54,10 +55,10 @@ export class BonusProcessingService {
 
       let directBonus = 0;
       let metadata: BonusMetadata = {
-        usuarioHijo: payment.userId,
+        ...customMetadata,
+        usuarioHijo: payment.userName,
         montoDelPago: payment.amount,
         codigoOperacion: payment.operationCode || 'N/A',
-        ...customMetadata,
       };
 
       if (
@@ -74,7 +75,9 @@ export class BonusProcessingService {
           ...metadata,
           planDelPadre: referrerMembership.plan.name,
           porcentajeComision: referrerMembership.plan.directCommissionAmount,
-          razon: 'Bonificación por referido directo - Membresía aprobada',
+          razon: isUpgrade
+            ? 'Bonificación por referido directo - Membresía actualizada'
+            : 'Bonificación por referido directo - Membresía aprobada',
         };
 
         const pointsPayload = {
@@ -210,6 +213,64 @@ export class BonusProcessingService {
     } catch (error) {
       this.logger.error(
         `Error al procesar puntos de volumen binario: ${error.message}`,
+      );
+    }
+  }
+
+  async processMonthlyVolumePoints(
+    payment: Payment,
+    volume: number,
+  ): Promise<void> {
+    try {
+      this.logger.log(
+        `Procesando puntos de volumen mensual para usuario: ${payment.userId}`,
+      );
+
+      const ancestorsResponse: {
+        userId: string;
+        userName: string;
+        userEmail: string;
+        site: 'LEFT' | 'RIGHT';
+      }[] = await firstValueFrom(
+        this.userClient.send(
+          { cmd: 'user.getActiveAncestorsWithMembership' },
+          { userId: payment.userId },
+        ),
+      );
+
+      if (ancestorsResponse && ancestorsResponse.length > 0) {
+        const usersForVolume = ancestorsResponse.map((ancestor) => ({
+          userId: ancestor.userId,
+          userName: ancestor.userName,
+          userEmail: ancestor.userEmail,
+          site: ancestor.site,
+          paymentId: payment.id.toString(),
+        }));
+
+        const volumePayload = {
+          amount: payment.amount,
+          volume: volume,
+          users: usersForVolume,
+        };
+
+        await firstValueFrom(
+          this.pointClient.send(
+            { cmd: 'monthlyVolume.createMonthlyVolume' },
+            volumePayload,
+          ),
+        );
+
+        this.logger.log(
+          `Puntos de volumen mensual procesados exitosamente. Ancestros encontrados: ${ancestorsResponse.length}, Volumen: ${volume}`,
+        );
+      } else {
+        this.logger.log(
+          `No se encontraron ancestros con membresía activa para el usuario: ${payment.userId}`,
+        );
+      }
+    } catch (error) {
+      this.logger.error(
+        `Error al procesar puntos de volumen mensual: ${error.message}`,
       );
     }
   }
