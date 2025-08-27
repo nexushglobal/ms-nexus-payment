@@ -9,6 +9,10 @@ import { PaymentItem } from '../../entities/payment-item.entity';
 import { Payment } from '../../entities/payment.entity';
 import { PaymentItemType } from '../../enum/payment-item.enum';
 import { PaymentStatus } from '../../enum/payment-status.enum';
+import { MembershipPaymentService } from '../payment-types/membership-payment.service';
+import { OrderPaymentService } from '../payment-types/order-payment.service';
+import { PlanUpgradeService } from '../payment-types/plan-upgrade.service';
+import { ReconsumptionService } from '../payment-types/reconsumption.service';
 import { BasePaymentMethodService } from './base-payment-method.service';
 
 @Injectable()
@@ -23,6 +27,10 @@ export class PointsPaymentService extends BasePaymentMethodService {
     @InjectRepository(PaymentItem)
     paymentItemRepository: Repository<PaymentItem>,
     private readonly pointsService: PointsService,
+    private readonly orderPaymentService: OrderPaymentService,
+    private readonly membershipPaymentService: MembershipPaymentService,
+    private readonly planUpgradeService: PlanUpgradeService,
+    private readonly reconsumptionService: ReconsumptionService,
   ) {
     super(paymentRepository, paymentConfigRepository, paymentItemRepository);
   }
@@ -75,9 +83,72 @@ export class PointsPaymentService extends BasePaymentMethodService {
 
       await this.paymentItemRepository.save(paymentItem);
 
+      // 6. Para POINTS, procesar automáticamente según el tipo de pago
+      let automaticProcessingResult: any = null;
+      try {
+        switch (paymentConfig.code) {
+          case 'ORDER_PAYMENT':
+            automaticProcessingResult =
+              await this.orderPaymentService.processOrderPayment(payment);
+            this.logger.log(
+              `Orden procesada automáticamente para pago POINTS ${payment.id}`,
+            );
+            break;
+
+          case 'MEMBERSHIP_PAYMENT':
+            automaticProcessingResult =
+              await this.membershipPaymentService.processMembershipPayment(
+                payment,
+              );
+            this.logger.log(
+              `Membresía procesada automáticamente para pago POINTS ${payment.id}`,
+            );
+            break;
+
+          case 'PLAN_UPGRADE':
+            automaticProcessingResult =
+              await this.planUpgradeService.processPlanUpgradePayment(payment);
+            this.logger.log(
+              `Upgrade procesado automáticamente para pago POINTS ${payment.id}`,
+            );
+            break;
+
+          case 'RECONSUMPTION':
+            automaticProcessingResult =
+              await this.reconsumptionService.processReconsumptionPayment(
+                payment,
+              );
+            this.logger.log(
+              `Reconsumo procesado automáticamente para pago POINTS ${payment.id}`,
+            );
+            break;
+
+          default:
+            this.logger.warn(
+              `Tipo de pago ${paymentConfig.code} no requiere procesamiento automático para POINTS`,
+            );
+            break;
+        }
+      } catch (processingError) {
+        this.logger.error(
+          `Error procesando automáticamente pago POINTS ${payment.id}: ${processingError.message}`,
+        );
+        // No lanzamos el error aquí para no revertir el pago, solo log
+      }
+
       this.logger.log(
         `Pago POINTS completado exitosamente para usuario ${data.userId}. Puntos descontados: ${data.amount}`,
       );
+
+      // 7. Para ORDER_PAYMENT, incluir información actualizada de la orden
+      let orderInfo: any = null;
+      if (paymentConfig.code === 'ORDER_PAYMENT' && automaticProcessingResult) {
+        orderInfo = {
+          orderId: parseInt(payment.relatedEntityId),
+          status: 'APPROVED', // La orden ya fue aprobada automáticamente
+          autoApproved: true,
+        };
+      }
 
       return {
         success: true,
@@ -85,6 +156,7 @@ export class PointsPaymentService extends BasePaymentMethodService {
         pointsTransactionId: pointsTransaction.transactionId,
         message: 'Pago procesado exitosamente con puntos',
         remainingPoints: userPoints.availablePoints - data.amount,
+        ...(orderInfo && { orderInfo }),
       };
     } catch (error) {
       this.logger.error(`Error al procesar pago POINTS: ${error.message}`);
