@@ -1,16 +1,42 @@
 import { Injectable, Logger } from '@nestjs/common';
+import {
+  ClientProxy,
+  ClientProxyFactory,
+  Transport,
+} from '@nestjs/microservices';
 import { InjectRepository } from '@nestjs/typeorm';
+import { firstValueFrom } from 'rxjs';
 import { In, Repository } from 'typeorm';
+import { envs } from '../../config/envs';
+import { PaymentReportData } from '../dto/get-payments-report.dto';
 import { Payment } from '../entities/payment.entity';
+import { PaymentStatus } from '../enum/payment-status.enum';
+
+interface UserContactInfo {
+  userId: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  email: string;
+  fullName: string;
+}
 
 @Injectable()
 export class PaymentService {
   private readonly logger = new Logger(PaymentService.name);
+  private readonly userClient: ClientProxy;
 
   constructor(
     @InjectRepository(Payment)
     private paymentRepository: Repository<Payment>,
-  ) {}
+  ) {
+    this.userClient = ClientProxyFactory.create({
+      transport: Transport.NATS,
+      options: {
+        servers: [envs.NATS_SERVERS],
+      },
+    });
+  }
 
   async findById(id: number): Promise<{
     id: number;
@@ -95,5 +121,110 @@ export class PaymentService {
       // ✅ SIN SELECT - cargar TODA la entidad
     });
     return payments;
+  }
+
+  async getPaymentsReport(
+    startDate?: string,
+    endDate?: string,
+  ): Promise<PaymentReportData[]> {
+    try {
+      const queryBuilder = this.paymentRepository
+        .createQueryBuilder('payment')
+        .leftJoinAndSelect('payment.paymentConfig', 'paymentConfig')
+        .where('payment.status = :status', { status: PaymentStatus.APPROVED })
+        .orderBy('payment.createdAt', 'DESC');
+
+      // Aplicar filtros de fecha si se proporcionan
+      if (startDate && endDate) {
+        queryBuilder.andWhere(
+          'payment.createdAt BETWEEN :startDate AND :endDate',
+          {
+            startDate: new Date(startDate),
+            endDate: new Date(endDate + 'T23:59:59.999Z'), // Final del día
+          },
+        );
+      } else if (startDate) {
+        queryBuilder.andWhere('payment.createdAt >= :startDate', {
+          startDate: new Date(startDate),
+        });
+      } else if (endDate) {
+        queryBuilder.andWhere('payment.createdAt <= :endDate', {
+          endDate: new Date(endDate + 'T23:59:59.999Z'),
+        });
+      }
+
+      const payments = await queryBuilder.getMany();
+
+      if (payments.length === 0) {
+        return [];
+      }
+
+      // Obtener información de contacto de usuarios
+      const userIds = payments.map((p) => p.userId);
+      const usersContactInfo = await this.getUsersContactInfo(userIds);
+
+      // Crear un mapa para acceso rápido a la información de contacto
+      const contactInfoMap = new Map(
+        usersContactInfo.map((user) => [user.userId, user]),
+      );
+
+      return payments.map((payment) => {
+        const contactInfo = contactInfoMap.get(payment.userId);
+        // Usar SOLO la información de contacto de la DB, no los métodos de extracción incorrectos
+        const firstName = contactInfo?.firstName || '';
+        const lastName = contactInfo?.lastName || '';
+
+        return {
+          paymentAmount: payment.amount,
+          paymentType: payment.paymentConfig?.name || 'N/A',
+          firstName: firstName,
+          lastName: lastName,
+          email: payment.userEmail,
+          created: payment.createdAt,
+          paymentMethod: this.formatPaymentMethod(payment.paymentMethod),
+        };
+      });
+    } catch (error) {
+      this.logger.error('Error generando reporte de pagos:', error);
+      throw error;
+    }
+  }
+
+  private async getUsersContactInfo(
+    userIds: string[],
+  ): Promise<UserContactInfo[]> {
+    try {
+      return await firstValueFrom(
+        this.userClient.send<UserContactInfo[]>(
+          { cmd: 'users.getUsersContactInfo' },
+          { userIds },
+        ),
+      );
+    } catch (error) {
+      this.logger.error('Error obteniendo información de contacto:', error);
+      // En caso de error, retornar array vacío para no romper el reporte
+      return [];
+    }
+  }
+
+  private extractFirstName(fullName: string): string {
+    if (!fullName) return '';
+    const nameParts = fullName.trim().split(' ');
+    return nameParts[0] || '';
+  }
+
+  private extractLastName(fullName: string): string {
+    if (!fullName) return '';
+    const nameParts = fullName.trim().split(' ');
+    return nameParts.slice(1).join(' ') || '';
+  }
+
+  private formatPaymentMethod(paymentMethod: string): string {
+    const methodMap: { [key: string]: string } = {
+      VOUCHER: 'Comprobante',
+      POINTS: 'Puntos',
+      PAYMENT_GATEWAY: 'Pasarela de Pago',
+    };
+    return methodMap[paymentMethod] || paymentMethod;
   }
 }
