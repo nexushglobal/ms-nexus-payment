@@ -370,23 +370,26 @@ export class ChargeService {
     } else if (sourceType === 'card') {
       // Validar que la card pertenezca al usuario
       const culqiCard = await this.culqiCardRepository.findOne({
-        where: { culqiCardId: sourceId, isActive: true },
+        where: {
+          culqiCardId: sourceId,
+          isActive: true,
+          culqiCustomer: { userId },
+        },
         relations: ['culqiCustomer'],
       });
 
       if (!culqiCard) {
         throw new RpcException({
           status: 404,
-          message: 'Card no encontrada',
+          message: 'Card no encontrada para el usuario especificado',
         });
       }
 
-      if (culqiCard.culqiCustomer.userId !== userId) {
-        throw new RpcException({
-          status: 403,
-          message: 'La card no pertenece al usuario especificado',
-        });
-      }
+      console.log('culqiCard:', culqiCard);
+      console.log('culqiCard.culqiCustomer:', culqiCard.culqiCustomer);
+      console.log('userId:', userId);
+
+      // Ya filtramos por userId en la consulta; no es necesario validar nuevamente
     } else {
       throw new RpcException({
         status: 400,
