@@ -27,31 +27,16 @@ export const getLiquidationReport = (
     commissionistSignatureImage,
   } = options;
 
-  // Fecha actual (no createdAt)
   const fechaActual = new Date().toLocaleDateString('es-PE');
 
-  // Procesar withdrawalPoints para la tabla principal
   const tableRows: any[] = [];
-  const binaryCommissionTickets: string[] = [];
   let totalAmount = 0;
 
   withdrawal.withdrawalPoints?.forEach((point) => {
     const metadata = point.metadata || {};
     const tipoTransaccion = metadata.tipo_transaccion || 'RETIRO DE PUNTOS';
-    // const planMembresia = metadata.plan_membresia || {};
 
     totalAmount += point.amountUsed;
-
-    // Si es BINARY_COMMISSION, recopilar tickets y agregar a la lista
-    if (tipoTransaccion === 'BINARY_COMMISSION') {
-      // Agregar todos los números de boleta de este punto de retiro
-      point.paymentsInfo?.forEach((payment) => {
-        if (payment.ticketNumber) {
-          binaryCommissionTickets.push(payment.ticketNumber);
-        }
-      });
-      return;
-    }
 
     const fecha =
       tipoTransaccion === 'DIRECT_BONUS' && metadata.fecha_creacion
@@ -59,13 +44,34 @@ export const getLiquidationReport = (
         : '';
 
     const concepto =
-      tipoTransaccion === 'DIRECT_BONUS' ? 'COMISION' : tipoTransaccion;
+      tipoTransaccion === 'DIRECT_BONUS'
+        ? 'COMISION'
+        : tipoTransaccion === 'BINARY_COMMISSION'
+          ? 'BONO BINARIO'
+          : tipoTransaccion;
 
-    // Para COMISION (DIRECT_BONUS), obtener datos del pago (siempre 0 o 1 pago)
-    const payment = point.paymentsInfo?.[0] || null;
-    const ticketNumber = payment?.ticketNumber || '';
-    const operationCode = payment?.operationCode || '';
-    const amountPaid = payment?.amount || 0;
+    // Procesar múltiples boletas y códigos de operación
+    let boletas = '';
+    let operaciones = '';
+    let importeTotal = 0;
+
+    if (point.paymentsInfo && point.paymentsInfo.length > 0) {
+      const ticketNumbers: string[] = [];
+      const operationCodes: string[] = [];
+
+      point.paymentsInfo.forEach((payment) => {
+        if (payment.ticketNumber) {
+          ticketNumbers.push(payment.ticketNumber);
+        }
+        if (payment.operationCode) {
+          operationCodes.push(payment.operationCode);
+        }
+        importeTotal += payment.amount || 0;
+      });
+
+      boletas = ticketNumbers.join(', ');
+      operaciones = operationCodes.join(', ');
+    }
 
     tableRows.push([
       {
@@ -74,61 +80,33 @@ export const getLiquidationReport = (
         alignment: 'center',
       },
       { text: concepto, fontSize: 8, alignment: 'center' },
-      { text: ticketNumber, fontSize: 8, alignment: 'center' },
-      { text: fecha, fontSize: 8, alignment: 'center' },
-      { text: amountPaid.toFixed(2), fontSize: 8, alignment: 'center' }, // IMPORTE: monto del pago
-      { text: 'Interbank', fontSize: 8, alignment: 'center' },
-      { text: operationCode, fontSize: 8, alignment: 'center' },
-      { text: point.amountUsed.toFixed(2), fontSize: 8, alignment: 'center' }, // COMISION: monto de puntos
-    ]);
-  });
-
-  // Agregar BONO BINARIO como una sola fila si existe
-  if (binaryCommissionTickets.length > 0) {
-    // IMPORTE: suma de montos de pagos para bono binario
-    const binaryPaymentsTotal =
-      withdrawal.withdrawalPoints
-        ?.filter((p) => p.metadata?.tipo_transaccion === 'BINARY_COMMISSION')
-        .reduce((sum, p) => {
-          const paymentsSum =
-            p.paymentsInfo?.reduce(
-              (pSum, payment) => pSum + (payment.amount || 0),
-              0,
-            ) || 0;
-          return sum + paymentsSum;
-        }, 0) || 0;
-
-    // COMISION: suma de montos de puntos para bono binario
-    const binaryPointsTotal =
-      withdrawal.withdrawalPoints
-        ?.filter((p) => p.metadata?.tipo_transaccion === 'BINARY_COMMISSION')
-        .reduce((sum, p) => sum + p.amountUsed, 0) || 0;
-
-    // const planMembresia =
-    //   withdrawal.withdrawalPoints?.[0]?.metadata?.plan_membresia || {};
-    // const porcentaje = planMembresia.porcentaje_comision
-    //   ? `${planMembresia.porcentaje_comision}%`
-    //   : '';
-
-    tableRows.push([
       {
-        text: (tableRows.length + 1).toString(),
+        text: boletas,
+        fontSize: 8,
+        alignment: 'center',
+        // Para que el texto largo se ajuste en múltiples líneas
+        lineHeight: 1.2,
+      },
+      { text: fecha, fontSize: 8, alignment: 'center' },
+      {
+        text: importeTotal.toFixed(2),
         fontSize: 8,
         alignment: 'center',
       },
-      { text: 'BONO BINARIO', fontSize: 8, alignment: 'center' },
-      { text: '', fontSize: 8, alignment: 'center' },
-      { text: '', fontSize: 8, alignment: 'center' },
+      { text: 'Interbank', fontSize: 8, alignment: 'center' },
       {
-        text: binaryPaymentsTotal.toFixed(2),
+        text: operaciones,
         fontSize: 8,
         alignment: 'center',
-      }, // IMPORTE: suma de pagos
-      { text: 'Interbank', fontSize: 8, alignment: 'center' },
-      { text: '', fontSize: 8, alignment: 'center' },
-      { text: binaryPointsTotal.toFixed(2), fontSize: 8, alignment: 'center' }, // COMISION: suma de puntos
+        lineHeight: 1.2,
+      },
+      {
+        text: point.amountUsed.toFixed(2),
+        fontSize: 8,
+        alignment: 'center',
+      },
     ]);
-  }
+  });
 
   // Calcular IGV y valor
   const igvRate = 0.18;
@@ -207,14 +185,14 @@ export const getLiquidationReport = (
       {
         table: {
           widths: [
-            '6%', // ITEM (era 5%)
-            '20%', // CONCEPTO (era 16%)
-            '12%', // N°BOLETA (era 9%)
-            '11%', // FECHA (era 9%)
-            '13%', // IMPORTE (era 11%)
-            '14%', // BANCO (era 11%)
-            '9%', // N° OP (era 7%)
-            '15%', // COMISION (era 11%)
+            '6%', // ITEM
+            '15%', // CONCEPTO (reducido un poco)
+            '15%', // N°BOLETA (aumentado para múltiples boletas)
+            '11%', // FECHA
+            '13%', // IMPORTE
+            '12%', // BANCO (reducido un poco)
+            '13%', // N° OP (aumentado para múltiples operaciones)
+            '15%', // COMISION
           ],
           headerRows: 1,
           body: [
@@ -249,32 +227,14 @@ export const getLiquidationReport = (
         layout: {
           hLineWidth: () => 1,
           vLineWidth: () => 1,
+          // Permitir que el texto se divida en múltiples líneas
+          paddingTop: () => 2,
+          paddingBottom: () => 2,
         },
         margin: [0, 0, 0, 15] as [number, number, number, number],
       },
 
-      // BONO BINARIO con números de boleta en filas separadas (DESPUÉS DE LA TABLA)
-      ...(binaryCommissionTickets.length > 0
-        ? [
-            {
-              text: '** BONO BINARIO',
-              fontSize: 8,
-              bold: true,
-              margin: [0, 0, 0, 5] as [number, number, number, number],
-            },
-            ...binaryCommissionTickets.map((ticketNumber) => ({
-              text: `- ${ticketNumber}`,
-              fontSize: 8,
-              margin: [20, 0, 0, 2] as [number, number, number, number],
-            })),
-            {
-              text: '',
-              margin: [0, 10, 0, 0] as [number, number, number, number],
-            },
-          ]
-        : []),
-
-      // Totales alineados con la tabla (DESPUÉS DEL DETALLE DE BONO BINARIO)
+      // Totales (ya no hay sección de BONO BINARIO después de la tabla)
       {
         columns: [
           { text: '', width: '58%' },
