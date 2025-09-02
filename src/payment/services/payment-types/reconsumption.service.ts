@@ -14,8 +14,17 @@ import { BonusProcessingService } from '../shared/bonus-processing.service';
 export class ReconsumptionService {
   private readonly logger = new Logger(ReconsumptionService.name);
   private readonly membershipClient: ClientProxy;
+  private readonly pointsClient: ClientProxy;
+
   constructor(private readonly bonusProcessingService: BonusProcessingService) {
     this.membershipClient = ClientProxyFactory.create({
+      transport: Transport.NATS,
+      options: {
+        servers: [envs.NATS_SERVERS],
+      },
+    });
+
+    this.pointsClient = ClientProxyFactory.create({
       transport: Transport.NATS,
       options: {
         servers: [envs.NATS_SERVERS],
@@ -48,8 +57,16 @@ export class ReconsumptionService {
       `Pago de membresía procesado exitosamente para ID: ${payment.relatedEntityId}`,
     );
     if (membershipResponse.isPointLLot) {
-      await this.bonusProcessingService.processBinaryVolumePoints(payment, 100);
-      // TODO:AGREGAR PUNTOS DE LOTE
+      await this.bonusProcessingService.processBinaryVolumePoints(
+        payment,
+        payment.amount,
+      );
+      await this.assignPointLotPoints(
+        payment.userId,
+        payment.userName,
+        payment.userEmail,
+        200,
+      );
     } else {
       await this.bonusProcessingService.processBinaryVolumePoints(
         payment,
@@ -93,6 +110,40 @@ export class ReconsumptionService {
         status: HttpStatus.INTERNAL_SERVER_ERROR,
         message: 'Error al procesar rechazo de pago de reconsumo',
       });
+    }
+  }
+
+  private async assignPointLotPoints(
+    userId: string,
+    userName: string,
+    userEmail: string,
+    amount: number,
+  ): Promise<void> {
+    this.logger.log(
+      `Asignando ${amount} puntos al banco de PointLot para usuario ${userId}`,
+    );
+
+    try {
+      await firstValueFrom(
+        this.pointsClient.send(
+          { cmd: 'pointsLotTransaction.createLotPoints' },
+          {
+            userId,
+            userName,
+            userEmail,
+            points: amount,
+            reference: 'Reconsumo aprobado PointLot',
+          },
+        ),
+      );
+
+      this.logger.log(
+        `${amount} puntos PointLot asignados exitosamente para usuario ${userId}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Error asignando puntos PointLot para usuario ${userId}: ${error.message}`,
+      );
     }
   }
 }
