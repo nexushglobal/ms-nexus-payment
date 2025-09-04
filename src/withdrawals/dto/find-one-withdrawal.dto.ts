@@ -27,14 +27,14 @@ export class UserDto {
 
 export class PointsDto {
   transactionId: string;
-  amount: number;
+  amount?: number;
 }
 
 export class WithdrawalPointDto {
   id: number;
   amountUsed: number;
   pointsTransactionId: string;
-  pointsAmount: number;
+  pointsAmount?: number;
   metadata: Record<string, any>; // Guardamos como genérico según tu indicación
   createdAt: Date;
   points: PointsDto;

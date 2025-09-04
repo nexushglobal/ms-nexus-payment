@@ -2,6 +2,61 @@ import { TDocumentDefinitions } from 'pdfmake/interfaces';
 import { formatDate } from 'src/reports/helpers/format-date.helper';
 import { FindOneWithdrawalWithReportResponseDto } from 'src/withdrawals/dto/find-one-withdrawal-with-report.dto';
 
+interface WeeklyVolumeResponseDto {
+  id: number;
+  leftVolume: number;
+  rightVolume: number;
+  commissionEarned?: number;
+  weekStartDate: Date;
+  weekEndDate: Date;
+  status: string;
+  selectedSide?: 'LEFT' | 'RIGHT';
+  processedAt?: Date;
+  metadata?: Record<string, any>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface WeeklyVolumeHistoryResponse {
+  items: WeeklyVolumeResponseDto[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  };
+}
+
+interface PointsTransactionResponseDto {
+  id: number;
+  userId: string;
+  userEmail: string;
+  userName?: string;
+  type: string;
+  amount: number;
+  pendingAmount: number;
+  withdrawnAmount: number;
+  status: string;
+  isArchived: boolean;
+  metadata: Record<string, any>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface PointsTransactionHistoryResponse {
+  items: PointsTransactionResponseDto[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  };
+}
+
 interface LiquidationOptions {
   title?: string;
   liquidationNumber: string;
@@ -12,6 +67,8 @@ interface LiquidationOptions {
   managerName?: string;
   accountantName?: string;
   commissionistSignatureImage?: string;
+  volumeHistory?: WeeklyVolumeHistoryResponse;
+  pointsHistory?: PointsTransactionHistoryResponse;
 }
 
 export const getLiquidationReport = (
@@ -25,6 +82,8 @@ export const getLiquidationReport = (
     managerName = 'CESAR HUERTAS ANAYA',
     accountantName = 'CONTABILIDAD',
     commissionistSignatureImage,
+    volumeHistory,
+    pointsHistory,
   } = options;
 
   const fechaActual = new Date().toLocaleDateString('es-PE');
@@ -107,6 +166,131 @@ export const getLiquidationReport = (
       },
     ]);
   });
+
+  // Preparar datos de historial de volúmenes
+  const volumeRows: any[] = [];
+
+  if (
+    volumeHistory &&
+    volumeHistory.items &&
+    Array.isArray(volumeHistory.items) &&
+    volumeHistory.items.length > 0
+  ) {
+    // Los datos ya vienen ordenados desde el servicio, solo procesamos directamente
+    volumeHistory.items.forEach((weeklyVolume, index) => {
+      const startDate = new Date(weeklyVolume.weekStartDate).toLocaleDateString(
+        'es-PE',
+      );
+      const endDate = new Date(weeklyVolume.weekEndDate).toLocaleDateString(
+        'es-PE',
+      );
+      const semana = `${startDate} - ${endDate}`;
+
+      volumeRows.push([
+        {
+          text: (index + 1).toString(),
+          fontSize: 8,
+          alignment: 'center',
+        },
+        {
+          text: semana,
+          fontSize: 8,
+          alignment: 'center',
+        },
+        {
+          text: weeklyVolume.leftVolume.toFixed(2),
+          fontSize: 8,
+          alignment: 'center',
+        },
+        {
+          text: weeklyVolume.rightVolume.toFixed(2),
+          fontSize: 8,
+          alignment: 'center',
+        },
+        {
+          text: weeklyVolume.commissionEarned
+            ? weeklyVolume.commissionEarned.toFixed(2)
+            : '0.00',
+          fontSize: 8,
+          alignment: 'center',
+        },
+        {
+          text:
+            weeklyVolume.status === 'PROCESSED'
+              ? 'PROCESADO'
+              : weeklyVolume.status === 'PENDING'
+                ? 'PENDIENTE'
+                : 'CANCELADO',
+          fontSize: 8,
+          alignment: 'center',
+        },
+      ]);
+    });
+  }
+
+  // Preparar datos de historial de puntos
+  const pointsRows: any[] = [];
+
+  if (
+    pointsHistory &&
+    pointsHistory.items &&
+    Array.isArray(pointsHistory.items) &&
+    pointsHistory.items.length > 0
+  ) {
+    pointsHistory.items.forEach((pointsTransaction, index) => {
+      const fecha = new Date(pointsTransaction.createdAt).toLocaleDateString(
+        'es-PE',
+      );
+
+      const tipo =
+        pointsTransaction.type === 'DIRECT_BONUS'
+          ? 'COMISION'
+          : pointsTransaction.type === 'BINARY_COMMISSION'
+            ? 'BONO BINARIO'
+            : pointsTransaction.type === 'WITHDRAWAL'
+              ? 'RETIRO'
+              : pointsTransaction.type === 'RECONSUMPTION'
+                ? 'RECONSUMO'
+                : pointsTransaction.type;
+
+      const estado =
+        pointsTransaction.status === 'COMPLETED'
+          ? 'COMPLETADO'
+          : pointsTransaction.status === 'PENDING'
+            ? 'PENDIENTE'
+            : pointsTransaction.status === 'CANCELLED'
+              ? 'CANCELADO'
+              : pointsTransaction.status;
+
+      pointsRows.push([
+        {
+          text: (index + 1).toString(),
+          fontSize: 8,
+          alignment: 'center',
+        },
+        {
+          text: fecha,
+          fontSize: 8,
+          alignment: 'center',
+        },
+        {
+          text: tipo,
+          fontSize: 8,
+          alignment: 'center',
+        },
+        {
+          text: pointsTransaction.amount.toFixed(2),
+          fontSize: 8,
+          alignment: 'center',
+        },
+        {
+          text: estado,
+          fontSize: 8,
+          alignment: 'center',
+        },
+      ]);
+    });
+  }
 
   // Calcular IGV y valor
   const igvRate = 0.18;
@@ -278,8 +462,153 @@ export const getLiquidationReport = (
             width: '42%',
           },
         ],
-        margin: [0, 0, 0, 100] as [number, number, number, number],
+        margin: [0, 0, 0, 30] as [number, number, number, number],
       },
+
+      // Historial de volúmenes (antes de las firmas)
+      ...(volumeRows.length > 0
+        ? [
+            {
+              text: 'Historial de volúmenes:',
+              fontSize: 10,
+              bold: true,
+              alignment: 'left' as const,
+              margin: [0, 20, 0, 10] as [number, number, number, number],
+            },
+
+            // Tabla de historial de volúmenes
+            {
+              table: {
+                widths: [
+                  '8%', // ITEM
+                  '28%', // SEMANA
+                  '16%', // VOL. IZQ
+                  '16%', // VOL. DER
+                  '16%', // COMISIÓN
+                  '16%', // ESTADO
+                ],
+                headerRows: 1,
+                body: [
+                  [
+                    {
+                      text: 'ITEM',
+                      fontSize: 8,
+                      bold: true,
+                      alignment: 'center',
+                    },
+                    {
+                      text: 'SEMANA',
+                      fontSize: 8,
+                      bold: true,
+                      alignment: 'center',
+                    },
+                    {
+                      text: 'VOL. IZQ',
+                      fontSize: 8,
+                      bold: true,
+                      alignment: 'center',
+                    },
+                    {
+                      text: 'VOL. DER',
+                      fontSize: 8,
+                      bold: true,
+                      alignment: 'center',
+                    },
+                    {
+                      text: 'COMISIÓN',
+                      fontSize: 8,
+                      bold: true,
+                      alignment: 'center',
+                    },
+                    {
+                      text: 'ESTADO',
+                      fontSize: 8,
+                      bold: true,
+                      alignment: 'center',
+                    },
+                  ],
+                  ...volumeRows,
+                ],
+              },
+              layout: {
+                hLineWidth: () => 1,
+                vLineWidth: () => 1,
+                paddingTop: () => 2,
+                paddingBottom: () => 2,
+              },
+              margin: [0, 0, 0, 30] as [number, number, number, number],
+            },
+          ]
+        : []),
+
+      // Historial de puntos (después de historial de volúmenes)
+      ...(pointsRows.length > 0
+        ? [
+            {
+              text: 'Historial de puntos:',
+              fontSize: 10,
+              bold: true,
+              alignment: 'left' as const,
+              margin: [0, 20, 0, 10] as [number, number, number, number],
+            },
+
+            // Tabla de historial de puntos
+            {
+              table: {
+                widths: [
+                  '10%', // ITEM
+                  '22%', // FECHA
+                  '30%', // TIPO
+                  '19%', // MONTO
+                  '19%', // ESTADO
+                ],
+                headerRows: 1,
+                body: [
+                  [
+                    {
+                      text: 'ITEM',
+                      fontSize: 8,
+                      bold: true,
+                      alignment: 'center',
+                    },
+                    {
+                      text: 'FECHA',
+                      fontSize: 8,
+                      bold: true,
+                      alignment: 'center',
+                    },
+                    {
+                      text: 'TIPO',
+                      fontSize: 8,
+                      bold: true,
+                      alignment: 'center',
+                    },
+                    {
+                      text: 'MONTO',
+                      fontSize: 8,
+                      bold: true,
+                      alignment: 'center',
+                    },
+                    {
+                      text: 'ESTADO',
+                      fontSize: 8,
+                      bold: true,
+                      alignment: 'center',
+                    },
+                  ],
+                  ...pointsRows,
+                ],
+              },
+              layout: {
+                hLineWidth: () => 1,
+                vLineWidth: () => 1,
+                paddingTop: () => 2,
+                paddingBottom: () => 2,
+              },
+              margin: [0, 0, 0, 30] as [number, number, number, number],
+            },
+          ]
+        : []),
 
       // Firmas
       {

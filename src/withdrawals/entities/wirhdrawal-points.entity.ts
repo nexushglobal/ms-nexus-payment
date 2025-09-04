@@ -21,8 +21,8 @@ export class WithdrawalPoints {
   @Column({ name: 'points_transaction_id' })
   pointsTransaction: string;
 
-  @Column({ name: 'points_amount' })
-  pointsAmount: number;
+  @Column({ name: 'points_amount', nullable: true })
+  pointsAmount?: number;
 
   @Column({
     type: 'decimal',

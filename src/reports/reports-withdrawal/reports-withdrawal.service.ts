@@ -1,5 +1,6 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { FilesService } from 'src/common/services/files.service';
+import { PointsService } from 'src/common/services/points.service';
 import { WithdrawalsService } from 'src/withdrawals/withdrawals.service';
 import { createMulterFile } from '../helpers/create-multer-file.helper';
 import { pdfToBuffer } from '../helpers/pdf-to-buffer.helper';
@@ -13,6 +14,7 @@ export class ReportsWithdrawalService {
     private readonly withdrawalsService: WithdrawalsService,
     private readonly printerService: PrinterService,
     private readonly filesService: FilesService,
+    private readonly pointsService: PointsService,
   ) {}
 
   async generateLiquidation(
@@ -24,6 +26,16 @@ export class ReportsWithdrawalService {
     const withdrawal =
       await this.withdrawalsService.findOneWithdrawalWithReport(withdrawalId);
     const liquidationNumber = String(withdrawal.id).padStart(6, '0');
+    const volumeHistory = await this.pointsService.getUserVolumeHistory(
+      withdrawal.user.id,
+      1,
+      100,
+    );
+    const pointsHistory = await this.pointsService.getUserPointsTransactions(
+      withdrawal.user.id,
+      1,
+      100,
+    );
     const docDefinition = getLiquidationReport({
       title: `LIQUIDACION N° ${liquidationNumber}`,
       liquidationNumber,
@@ -31,6 +43,8 @@ export class ReportsWithdrawalService {
       userDocumentNumber,
       userRazonSocial,
       commissionistSignatureImage,
+      volumeHistory,
+      pointsHistory,
     });
     const doc = this.printerService.createPdf(docDefinition);
     const pdfBuffer = await pdfToBuffer(doc);

@@ -48,7 +48,7 @@ export function formatOneWithdrawalWithReportResponse(
         id: point.id,
         amountUsed: point.amountUsed,
         pointsTransactionId: point.id.toString(),
-        pointsAmount: point.pointsAmount,
+        pointsAmount: point.pointsAmount ?? 0,
         metadata: point.metadata,
         createdAt: point.createdAt,
         points: {
