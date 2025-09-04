@@ -131,7 +131,10 @@ export class PaymentService {
       const queryBuilder = this.paymentRepository
         .createQueryBuilder('payment')
         .leftJoinAndSelect('payment.paymentConfig', 'paymentConfig')
-        .where('payment.status = :status', { status: PaymentStatus.APPROVED })
+        // tiene que poder varios status A
+        .where('payment.status IN (:...statuses)', {
+          statuses: [PaymentStatus.APPROVED, PaymentStatus.COMPLETED],
+        })
         .orderBy('payment.createdAt', 'DESC');
 
       // Aplicar filtros de fecha si se proporcionan
