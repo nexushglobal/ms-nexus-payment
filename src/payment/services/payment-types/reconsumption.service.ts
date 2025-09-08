@@ -40,7 +40,7 @@ export class ReconsumptionService {
       newStartDate: string;
       newEndDate: number;
       minReconsumptionAmount: number;
-      isPointLLot: boolean;
+      isPointLot: boolean;
     } = await firstValueFrom(
       this.membershipClient.send(
         { cmd: 'membership.aproveReconsumption' },
@@ -56,7 +56,7 @@ export class ReconsumptionService {
     this.logger.log(
       `Pago de membresía procesado exitosamente para ID: ${payment.relatedEntityId}`,
     );
-    if (membershipResponse.isPointLLot) {
+    if (membershipResponse.isPointLot) {
       await this.bonusProcessingService.processBinaryVolumePoints(
         payment,
         payment.amount,

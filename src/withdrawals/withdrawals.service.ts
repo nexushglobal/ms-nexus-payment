@@ -72,13 +72,17 @@ export class WithdrawalsService {
           message: 'No tienes suficientes puntos disponibles',
         });
 
+      this.logger.log(
+        `Puntos reservados exitosamente para usuario ${userId}, monto: ${amount}`,
+      );
+
       // 3. Crear la solicitud de retiro con datos desnormalizados
       const withdrawal = this.withdrawalRepository.create({
         userId,
         userEmail,
         userName,
         amount,
-        status: WithdrawalStatus.PENDING_SIGNATURE,
+        status: WithdrawalStatus.PENDING,
         bankName,
         accountNumber,
         cci,
@@ -90,25 +94,44 @@ export class WithdrawalsService {
         },
       });
 
+      this.logger.log(`Solicitud de retiro creada: ${withdrawal.id}`);
+
       const savedWithdrawal = await queryRunner.manager.save(withdrawal);
+
+      // 4. Asociar las transacciones de puntos reservadas al retiro
+      this.logger.log(
+        `Asociando transacciones de puntos al retiro: ${withdrawal.id}`,
+      );
 
       if (
         reserveForWithdrawal.pointsTransaction &&
         reserveForWithdrawal.pointsTransaction.length > 0
       ) {
+        this.logger.log(
+          `Transacciones de puntos asociadas al retiro: ${withdrawal.id}`,
+        );
         const withdrawalPointsToSave =
           reserveForWithdrawal.pointsTransaction.map((transaction) => {
+            this.logger.log(
+              `transaction id: ${transaction.id}, amount: ${transaction.amount}, amountUsed: ${transaction.amountUsed}`,
+            );
+            console.log(transaction);
             return this.withdrawalPointsRepository.create({
               withdrawal: savedWithdrawal,
               pointsTransaction: transaction.id.toString(),
-              pointsAmount: transaction.amount,
-              amountUsed: transaction.amountUsed,
+              pointsAmount: Number(transaction.amount),
+              amountUsed: Number(transaction.amountUsed),
               metadata: transaction.metadata,
             });
           });
 
         await queryRunner.manager.save(withdrawalPointsToSave);
+        this.logger.log(
+          `Transacciones de puntos asociadas al retiro: ${withdrawal.id}`,
+        );
       }
+      // 5. Commit de la transacción
+      this.logger.log(`Commit de la transacción: ${withdrawal.id}`);
 
       await queryRunner.commitTransaction();
       await queryRunner.release();
@@ -345,7 +368,10 @@ export class WithdrawalsService {
           message: `Retiro con ID ${withdrawalId} no encontrado`,
         });
 
-      if (withdrawal.status !== WithdrawalStatus.PENDING)
+      if (
+        withdrawal.status !== WithdrawalStatus.PENDING &&
+        withdrawal.status !== WithdrawalStatus.PENDING_SIGNATURE
+      )
         throw new RpcException({
           status: 400,
           message: `El retiro ya ha sido ${withdrawal.status === WithdrawalStatus.APPROVED ? 'aprobado' : 'rechazado'}`,
@@ -422,7 +448,10 @@ export class WithdrawalsService {
         });
       }
 
-      if (withdrawal.status !== WithdrawalStatus.PENDING) {
+      if (
+        withdrawal.status !== WithdrawalStatus.PENDING &&
+        withdrawal.status !== WithdrawalStatus.PENDING_SIGNATURE
+      ) {
         throw new RpcException({
           status: 400,
           message: `El retiro ya ha sido ${withdrawal.status === WithdrawalStatus.APPROVED ? 'aprobado' : 'rechazado'}`,

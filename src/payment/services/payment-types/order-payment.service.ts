@@ -63,11 +63,11 @@ export class OrderPaymentService {
 
       // 2. Procesar bonos si aplican
       if (orderResponse.binaryPoints > 0) {
-        await this.bonusProcessingService.processDirectReferralBonus(payment, {
-          tipoOperacion: 'ORDER_PURCHASE',
-          orderId: payment.relatedEntityId,
-          products: orderResponse.products,
-        });
+        // await this.bonusProcessingService.processDirectReferralBonus(payment, {
+        //   tipoOperacion: 'ORDER_PURCHASE',
+        //   orderId: payment.relatedEntityId,
+        //   products: orderResponse.products,
+        // });
 
         await this.bonusProcessingService.processBinaryVolumePoints(
           payment,
