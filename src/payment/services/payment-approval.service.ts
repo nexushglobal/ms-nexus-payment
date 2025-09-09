@@ -81,7 +81,7 @@ export class PaymentApprovalService {
         'Configuración de Pago': payment.paymentConfig.code,
         'Estado del Pago': PaymentStatus.APPROVED,
         Monto: payment.amount,
-        Descripción: `Pago aprobado el ${new Date().toLocaleDateString('es-ES')} a las ${new Date().toLocaleTimeString('es-ES')}`,
+        Descripción: `Pago aprobado el ${new Date().toLocaleDateString('pe-PE')} a las ${new Date().toLocaleTimeString('pe-PE')}`,
       };
 
       // Guardar el pago actualizado

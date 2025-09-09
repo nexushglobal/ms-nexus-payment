@@ -90,8 +90,8 @@ export class WithdrawalsService {
         accountNumber,
         cci,
         metadata: {
-          createdAt: new Date(),
-          requestedAmount: amount,
+          'Creado en': new Date().toLocaleDateString('pe-PE'),
+          // requestedAmount: amount,
           'Monto solicitado': amount,
           'Puntos disponibles': amount,
         },

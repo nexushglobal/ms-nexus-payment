@@ -53,13 +53,13 @@ export class PaymentGatewayService extends BasePaymentMethodService {
         capture: true,
         description: 'Pago realizado a través de PAYMENT_GATEWAY',
         metadata: {
-          relatedEntityType: data.relatedEntityType,
-          relatedEntityId: data.relatedEntityId,
-          userId: data.userId,
-          userEmail: data.userEmail,
-          username: data.username,
-          paymentMethod: data.paymentMethod,
-          paymentId: payment.id,
+          'Concepto de Pago': data.relatedEntityType,
+          // relatedEntityId: data.relatedEntityId,
+          'ID de Usuario': data.userId,
+          'Email de Usuario': data.userEmail,
+          'Nombre de Usuario': data.username,
+          'Método de Pago': data.paymentMethod,
+          // paymentId: payment.id,
         },
       };
       try {

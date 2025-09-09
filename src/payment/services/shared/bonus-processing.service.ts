@@ -9,9 +9,9 @@ import { envs } from 'src/config/envs';
 import { Payment } from '../../entities/payment.entity';
 
 export interface BonusMetadata {
-  usuarioHijo: string;
-  montoDelPago: number;
-  codigoOperacion: string;
+  Referido: string;
+  'Monto del Pago': number;
+  // codigoOperacion: string;
   [key: string]: any;
 }
 
@@ -56,9 +56,9 @@ export class BonusProcessingService {
       let directBonus = 0;
       let metadata: BonusMetadata = {
         ...customMetadata,
-        usuarioHijo: payment.userName,
-        montoDelPago: payment.amount,
-        codigoOperacion: payment.operationCode || 'N/A',
+        Referido: payment.userName,
+        'Monto del Pago': payment.amount,
+        // codigoOperacion: payment.operationCode || 'N/A',
       };
 
       if (
@@ -73,9 +73,10 @@ export class BonusProcessingService {
 
         metadata = {
           ...metadata,
-          planDelPadre: referrerMembership.plan.name,
-          porcentajeComision: referrerMembership.plan.directCommissionAmount,
-          razon: isUpgrade
+          'Plan del referente': referrerMembership.plan.name,
+          'Porcentaje de comisión':
+            referrerMembership.plan.directCommissionAmount,
+          Razón: isUpgrade
             ? 'Bonificación por referido directo - Membresía actualizada'
             : 'Bonificación por referido directo - Membresía aprobada',
         };
@@ -117,8 +118,8 @@ export class BonusProcessingService {
             'Error desconocido al consultar membresía del padre';
         }
 
-        metadata.razon = razon;
-        metadata.bonificacion = 0;
+        metadata.Razón = razon;
+        metadata.Bonificacion = 0;
 
         if (
           referrerResponse.hasReferrer &&
