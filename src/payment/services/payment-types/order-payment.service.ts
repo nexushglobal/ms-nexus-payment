@@ -71,12 +71,12 @@ export class OrderPaymentService {
 
         await this.bonusProcessingService.processBinaryVolumePoints(
           payment,
-          orderResponse.binaryPoints,
+          orderResponse.totalAmount,
         );
 
         await this.bonusProcessingService.processMonthlyVolumePoints(
           payment,
-          orderResponse.binaryPoints,
+          orderResponse.totalAmount,
         );
 
         this.logger.log(
