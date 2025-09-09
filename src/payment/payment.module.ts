@@ -1,7 +1,8 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CommonModule } from 'src/common/common.module';
 import { CulqiModule } from 'src/culqi/culqi.module';
+import { WithdrawalsModule } from 'src/withdrawals/withdrawals.module';
 import { AdminPaymentsController } from './controllers/admin-payments.controller';
 import { PaymentApprovalController } from './controllers/payment-approval.controller';
 import { PaymentDetailController } from './controllers/payment-detail.controller';
@@ -31,6 +32,7 @@ import { UserService } from './services/user/user.service';
     TypeOrmModule.forFeature([Payment, PaymentConfig, PaymentItem]),
     CommonModule,
     CulqiModule,
+    forwardRef(() => WithdrawalsModule),
   ],
   controllers: [
     PaymentController,

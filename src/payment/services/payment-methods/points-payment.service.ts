@@ -3,6 +3,7 @@ import { RpcException } from '@nestjs/microservices';
 import { InjectRepository } from '@nestjs/typeorm';
 import { PointsService } from 'src/common/services/points.service';
 import { CreatePaymentData } from 'src/payment/dto/create-payment.dto';
+import { WithdrawalsService } from 'src/withdrawals/withdrawals.service';
 import { Repository } from 'typeorm';
 import { PaymentConfig } from '../../entities/payment-config.entity';
 import { PaymentItem } from '../../entities/payment-item.entity';
@@ -31,6 +32,7 @@ export class PointsPaymentService extends BasePaymentMethodService {
     private readonly membershipPaymentService: MembershipPaymentService,
     private readonly planUpgradeService: PlanUpgradeService,
     private readonly reconsumptionService: ReconsumptionService,
+    private readonly withdrawalsService: WithdrawalsService,
   ) {
     super(paymentRepository, paymentConfigRepository, paymentItemRepository);
   }
@@ -83,7 +85,30 @@ export class PointsPaymentService extends BasePaymentMethodService {
 
       await this.paymentItemRepository.save(paymentItem);
 
-      // 6. Para POINTS, procesar automáticamente según el tipo de pago
+      // 6. Registrar retiro automático por el pago con puntos
+      try {
+        await this.withdrawalsService.createWithdrawal({
+          userId: data.userId,
+          userName: data.username,
+          userEmail: data.userEmail,
+          userDocumentNumber: 'Retiro de puntos como pago interno', // No disponible en el pago
+          userRazonSocial: 'Retiro de puntos como pago interno', // Usar el nombre como razón social
+          bankName: 'Retiro de puntos como pago interno', // Se completará cuando el usuario configure su cuenta
+          accountNumber: 'Retiro de puntos como pago interno',
+          cci: 'Retiro de puntos como pago interno',
+          amount: data.amount,
+        });
+        this.logger.log(
+          `Retiro automático registrado por pago POINTS ${payment.id} para usuario ${data.userId}`,
+        );
+      } catch (withdrawalError) {
+        this.logger.error(
+          `Error registrando retiro automático para pago POINTS ${payment.id}: ${withdrawalError.message}`,
+        );
+        // No lanzamos el error aquí para no revertir el pago, solo log
+      }
+
+      // 7. Para POINTS, procesar automáticamente según el tipo de pago
       let automaticProcessingResult: any = null;
       try {
         switch (paymentConfig.code) {
@@ -140,7 +165,7 @@ export class PointsPaymentService extends BasePaymentMethodService {
         `Pago POINTS completado exitosamente para usuario ${data.userId}. Puntos descontados: ${data.amount}`,
       );
 
-      // 7. Para ORDER_PAYMENT, incluir información actualizada de la orden
+      // 8. Para ORDER_PAYMENT, incluir información actualizada de la orden
       let orderInfo: any = null;
       if (paymentConfig.code === 'ORDER_PAYMENT' && automaticProcessingResult) {
         orderInfo = {
