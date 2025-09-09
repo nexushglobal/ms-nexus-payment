@@ -12,7 +12,7 @@ import { WithdrawalsService } from './withdrawals.service';
   imports: [
     TypeOrmModule.forFeature([Withdrawal, WithdrawalPoints]),
     CommonModule,
-    PaymentModule,
+    forwardRef(() => PaymentModule),
     forwardRef(() => ReportsWithdrawalModule),
   ],
   controllers: [WithdrawalsController],

@@ -1,4 +1,10 @@
-import { HttpStatus, Injectable, Logger } from '@nestjs/common';
+import {
+  forwardRef,
+  HttpStatus,
+  Inject,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { InjectRepository } from '@nestjs/typeorm';
 import { PointsService } from 'src/common/services/points.service';
@@ -32,6 +38,7 @@ export class PointsPaymentService extends BasePaymentMethodService {
     private readonly membershipPaymentService: MembershipPaymentService,
     private readonly planUpgradeService: PlanUpgradeService,
     private readonly reconsumptionService: ReconsumptionService,
+    @Inject(forwardRef(() => WithdrawalsService))
     private readonly withdrawalsService: WithdrawalsService,
   ) {
     super(paymentRepository, paymentConfigRepository, paymentItemRepository);
