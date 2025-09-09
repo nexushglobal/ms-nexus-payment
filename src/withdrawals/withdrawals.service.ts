@@ -118,7 +118,7 @@ export class WithdrawalsService {
             this.logger.log(
               `transaction id: ${transaction.id}, amount: ${transaction.amount}, amountUsed: ${transaction.amountUsed}`,
             );
-            console.log(transaction);
+            // console.log(transaction);
             return this.withdrawalPointsRepository.create({
               withdrawal: savedWithdrawal,
               pointsTransaction: transaction.id.toString(),
@@ -463,6 +463,7 @@ export class WithdrawalsService {
           email: reviewerEmail,
         },
         timestamp: withdrawal.reviewedAt,
+        transactionId: withdrawalPointsWithTransactions[0].pointsTransactionId,
       };
     } catch (error) {
       await queryRunner.rollbackTransaction();

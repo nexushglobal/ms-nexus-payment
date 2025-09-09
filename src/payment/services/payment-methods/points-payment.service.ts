@@ -72,29 +72,18 @@ export class PointsPaymentService extends BasePaymentMethodService {
       );
 
       // 4. Descontar puntos del usuario
-      const pointsTransaction = await this.pointsService.deductPointsForPayment(
-        data.userId,
-        data.username,
-        data.userEmail,
-        data.amount,
-        payment.id,
-        `PAY-${payment.id}`,
-      );
+      // const pointsTransaction = await this.pointsService.deductPointsForPayment(
+      //   data.userId,
+      //   data.username,
+      //   data.userEmail,
+      //   data.amount,
+      //   payment.id,
+      //   `PAY-${payment.id}`,
+      // );
 
-      // 5. Crear PaymentItem para registrar la transacción de puntos
-      const paymentItem = this.paymentItemRepository.create({
-        payment: payment,
-        itemType: PaymentItemType.POINTS_TRANSACTION,
-        amount: data.amount,
-        transactionDate: new Date(),
-        pointsTransactionId: String(pointsTransaction.transactionId),
-      });
-
-      await this.paymentItemRepository.save(paymentItem);
-
-      // 6. Registrar retiro automático por el pago con puntos
+      let pointsTransaction;
       try {
-        await this.withdrawalsService.createWithdrawal({
+        pointsTransaction = await this.withdrawalsService.createWithdrawal({
           userId: data.userId,
           userName: data.username,
           userEmail: data.userEmail,
@@ -108,12 +97,28 @@ export class PointsPaymentService extends BasePaymentMethodService {
         this.logger.log(
           `Retiro automático registrado por pago POINTS ${payment.id} para usuario ${data.userId}`,
         );
+        await this.withdrawalsService.approveWithdrawal(
+          pointsTransaction.withdrawal.id as number,
+          data.userId,
+          data.userEmail,
+        );
       } catch (withdrawalError) {
         this.logger.error(
           `Error registrando retiro automático para pago POINTS ${payment.id}: ${withdrawalError.message}`,
         );
         // No lanzamos el error aquí para no revertir el pago, solo log
       }
+
+      // 5. Crear PaymentItem para registrar la transacción de puntos
+      const paymentItem = this.paymentItemRepository.create({
+        payment: payment,
+        itemType: PaymentItemType.POINTS_TRANSACTION,
+        amount: data.amount,
+        transactionDate: new Date(),
+        pointsTransactionId: String(pointsTransaction.transactionId),
+      });
+
+      await this.paymentItemRepository.save(paymentItem);
 
       // 7. Para POINTS, procesar automáticamente según el tipo de pago
       let automaticProcessingResult: any = null;
