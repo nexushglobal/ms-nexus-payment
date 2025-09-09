@@ -6,6 +6,7 @@ import { paginate } from 'src/common/helpers/paginate.helper';
 import { PaymentService } from 'src/payment/services/payment.service';
 import { ReportsWithdrawalService } from 'src/reports/reports-withdrawal/reports-withdrawal.service';
 import { DataSource, Repository } from 'typeorm';
+import { ReserveForWithdrawal } from '../common/interfaces/reserve-for-withdrawal.interface';
 import { PointsService } from '../common/services/points.service';
 import { CreateWithdrawalDto } from './dto/create-withdrawal.dto';
 import {
@@ -42,29 +43,31 @@ export class WithdrawalsService {
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
-    try {
-      const {
-        amount,
-        bankName,
-        accountNumber,
-        cci,
-        userId,
-        userEmail,
-        userName,
-        userDocumentNumber,
-        userRazonSocial,
-      } = createWithdrawalDto;
+    const {
+      amount,
+      bankName,
+      accountNumber,
+      cci,
+      userId,
+      userEmail,
+      userName,
+      userDocumentNumber,
+      userRazonSocial,
+    } = createWithdrawalDto;
 
+    let reserveForWithdrawal: ReserveForWithdrawal | null = null;
+
+    try {
       this.logger.log(
         `Iniciando creación de retiro para usuario ${userId}, monto: ${amount}`,
       );
-      const reserveForWithdrawal =
-        await this.pointsService.reserveForWithdrawal(
-          userId,
-          userName,
-          userEmail,
-          amount,
-        );
+
+      reserveForWithdrawal = await this.pointsService.reserveForWithdrawal(
+        userId,
+        userName,
+        userEmail,
+        amount,
+      );
 
       if (!reserveForWithdrawal.success)
         throw new RpcException({
@@ -130,11 +133,14 @@ export class WithdrawalsService {
           `Transacciones de puntos asociadas al retiro: ${withdrawal.id}`,
         );
       }
-      // 5. Commit de la transacción
-      this.logger.log(`Commit de la transacción: ${withdrawal.id}`);
+      // 5. Commit de la transacción crítica (puntos + retiro)
+      this.logger.log(`Commit de la transacción crítica: ${withdrawal.id}`);
 
       await queryRunner.commitTransaction();
-      await queryRunner.release();
+
+      this.logger.log(`Retiro creado exitosamente: ${savedWithdrawal.id}`);
+
+      // 6. Generar PDF fuera de la transacción crítica (operación no crítica)
       try {
         const pdfResult =
           await this.reportsWithdrawalService.generateLiquidation(
@@ -144,23 +150,71 @@ export class WithdrawalsService {
           );
         savedWithdrawal.pdfUrl = pdfResult.url;
         await this.withdrawalRepository.save(savedWithdrawal);
+        this.logger.log(
+          `PDF generado exitosamente para retiro: ${savedWithdrawal.id}`,
+        );
       } catch (pdfError) {
+        // Error en PDF no afecta la operación de retiro exitosa
         this.logger.error(
-          `Error al generar PDF para retiro ${savedWithdrawal.id}: ${pdfError.message}`,
+          `Error al generar PDF para retiro ${savedWithdrawal.id}: ${pdfError.message}. El retiro fue creado correctamente.`,
         );
       }
 
-      this.logger.log(`Retiro creado exitosamente: ${savedWithdrawal.id}`);
       return formatCreateWithdrawalResponse(savedWithdrawal);
     } catch (error) {
+      // Rollback de la transacción local
       await queryRunner.rollbackTransaction();
-      await queryRunner.release();
-      this.logger.error(`Error al crear retiro: ${error.message}`);
+      this.logger.error(
+        `Error al crear retiro, aplicando rollback: ${error.message}`,
+      );
+
+      // Rollback limpio: solo devolver puntos sin historial innecesario
+      try {
+        if (
+          reserveForWithdrawal?.success &&
+          reserveForWithdrawal.pointsTransaction?.length > 0
+        ) {
+          this.logger.log(
+            `Iniciando rollback de puntos reservados para usuario ${userId}`,
+          );
+
+          const withdrawalPoints = reserveForWithdrawal.pointsTransaction.map(
+            (transaction) => ({
+              pointsTransactionId: transaction.id.toString(),
+              amountUsed: Number(transaction.amountUsed),
+            }),
+          );
+
+          const rollbackResult =
+            await this.pointsService.rollbackReservedPoints(
+              userId,
+              withdrawalPoints,
+            );
+          if (rollbackResult.success) {
+            this.logger.log(
+              `Rollback de puntos completado exitosamente para usuario ${userId}`,
+            );
+          } else {
+            this.logger.error(
+              `Rollback de puntos falló para usuario ${userId}: ${rollbackResult.message}`,
+            );
+          }
+        }
+      } catch (rollbackError) {
+        // Log del error de rollback, pero no fallar la operación
+        this.logger.error(
+          `Error en rollback de puntos para usuario ${userId}: ${rollbackError.message}. REVISAR MANUALMENTE.`,
+        );
+      }
+
       if (error instanceof RpcException) throw error;
       throw new RpcException({
         status: 500,
         message: 'Error interno al crear retiro',
       });
+    } finally {
+      // Asegurar que siempre se libere la conexión
+      await queryRunner.release();
     }
   }
 

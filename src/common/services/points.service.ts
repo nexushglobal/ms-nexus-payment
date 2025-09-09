@@ -177,6 +177,51 @@ export class PointsService {
     );
   }
 
+  async rollbackReservedPoints(
+    userId: string,
+    withdrawalPoints: Array<{
+      pointsTransactionId: string;
+      amountUsed: number;
+    }>,
+  ): Promise<{ success: boolean; message: string }> {
+    return await firstValueFrom(
+      this.pointsClient
+        .send(
+          { cmd: 'pointsTransaction.rollbackReservedPoints' },
+          { userId, withdrawalPoints },
+        )
+        .pipe(
+          catchError((error) => {
+            if (error instanceof RpcException) throw error;
+            const err = error as {
+              message?: string | string[];
+              status?: number;
+              service?: string;
+            };
+            // Determinamos el mensaje del error
+            let errorMessage: string[];
+            if (Array.isArray(err?.message)) {
+              errorMessage = err.message;
+            } else if (typeof err?.message === 'string') {
+              errorMessage = [err.message];
+            } else {
+              errorMessage = ['Unknown RPC Error'];
+            }
+            const statusCode =
+              typeof err?.status === 'number'
+                ? err.status
+                : HttpStatus.INTERNAL_SERVER_ERROR;
+            const service = err?.service || 'ms-nexus-gateway';
+            throw new RpcException({
+              status: statusCode,
+              message: errorMessage,
+              service,
+            });
+          }),
+        ),
+    );
+  }
+
   async getPointsTransactionById(
     pointsTransactionId: string,
   ): Promise<{ paymentId: string }[]> {
