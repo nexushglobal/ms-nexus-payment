@@ -105,6 +105,7 @@ export class PointsPaymentService extends BasePaymentMethodService {
       } catch (withdrawalError) {
         this.logger.error(
           `Error registrando retiro automático para pago POINTS ${payment.id}: ${withdrawalError.message}`,
+          withdrawalError.stack,
         );
         // No lanzamos el error aquí para no revertir el pago, solo log
       }
@@ -115,7 +116,9 @@ export class PointsPaymentService extends BasePaymentMethodService {
         itemType: PaymentItemType.POINTS_TRANSACTION,
         amount: data.amount,
         transactionDate: new Date(),
-        pointsTransactionId: String(pointsTransaction.transactionId),
+        pointsTransactionId: String(
+          pointsTransaction?.transactionId || payment.id,
+        ),
       });
 
       await this.paymentItemRepository.save(paymentItem);
@@ -123,12 +126,20 @@ export class PointsPaymentService extends BasePaymentMethodService {
       // 7. Para POINTS, procesar automáticamente según el tipo de pago
       let automaticProcessingResult: any = null;
       try {
+        this.logger.log(
+          `Iniciando procesamiento automático para pago POINTS ${payment.id}, tipo: ${paymentConfig.code}`,
+        );
+
         switch (paymentConfig.code) {
           case 'ORDER_PAYMENT':
+            this.logger.log(
+              `Procesando ORDER_PAYMENT para pago POINTS ${payment.id}, userId: ${payment.userId}, amount: ${payment.amount}`,
+            );
             automaticProcessingResult =
               await this.orderPaymentService.processOrderPayment(payment);
             this.logger.log(
-              `Orden procesada automáticamente para pago POINTS ${payment.id}`,
+              `Orden procesada automáticamente para pago POINTS ${payment.id}. Resultado:`,
+              automaticProcessingResult,
             );
             break;
 
@@ -169,6 +180,7 @@ export class PointsPaymentService extends BasePaymentMethodService {
       } catch (processingError) {
         this.logger.error(
           `Error procesando automáticamente pago POINTS ${payment.id}: ${processingError.message}`,
+          processingError.stack,
         );
         // No lanzamos el error aquí para no revertir el pago, solo log
       }
@@ -190,7 +202,7 @@ export class PointsPaymentService extends BasePaymentMethodService {
       return {
         success: true,
         paymentId: payment.id,
-        pointsTransactionId: pointsTransaction.transactionId,
+        pointsTransactionId: pointsTransaction?.transactionId || payment.id,
         message: 'Pago procesado exitosamente con puntos',
         remainingPoints: userPoints.availablePoints - data.amount,
         ...(orderInfo && { orderInfo }),

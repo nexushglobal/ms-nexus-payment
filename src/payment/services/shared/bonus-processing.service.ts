@@ -73,9 +73,7 @@ export class BonusProcessingService {
 
         metadata = {
           ...metadata,
-          'Plan del referente': referrerMembership.plan.name,
-          'Porcentaje de comisión':
-            referrerMembership.plan.directCommissionAmount,
+          'Metodo de pago': payment.paymentMethod,
           Razón: isUpgrade
             ? 'Bonificación por referido directo - Membresía actualizada'
             : 'Bonificación por referido directo - Membresía aprobada',
@@ -166,7 +164,11 @@ export class BonusProcessingService {
   ): Promise<void> {
     try {
       this.logger.log(
-        `Procesando puntos de volumen binario para usuario: ${payment.userId}`,
+        `Procesando puntos de volumen binario para usuario: ${payment.userId}, paymentId: ${payment.id}, puntos: ${binaryPoints}`,
+      );
+
+      this.logger.log(
+        `Obteniendo ancestros binarios para usuario ${payment.userId}`,
       );
 
       const ancestorsResponse: {
@@ -179,6 +181,10 @@ export class BonusProcessingService {
           { cmd: 'user.getActiveAncestorsWithMembership' },
           { userId: payment.userId },
         ),
+      );
+
+      this.logger.log(
+        `Ancestros binarios obtenidos para usuario ${payment.userId}: ${ancestorsResponse?.length || 0}`,
       );
 
       if (ancestorsResponse && ancestorsResponse.length > 0) {

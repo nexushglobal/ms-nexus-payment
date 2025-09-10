@@ -93,7 +93,7 @@ export class WithdrawalsService {
           'Creado en': new Date().toLocaleDateString('pe-PE'),
           // requestedAmount: amount,
           'Monto solicitado': amount,
-          'Puntos disponibles': amount,
+          // 'Puntos disponibles': pointsAvailable,
         },
       });
 
