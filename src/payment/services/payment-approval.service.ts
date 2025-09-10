@@ -196,11 +196,14 @@ export class PaymentApprovalService {
       );
 
       return {
-        message: 'Payment rejected successfully',
-        paymentId: paymentId,
-        reason: rejectPaymentDto.rejectionReason,
-        rejectedBy: userId,
-        user,
+        success: true,
+        message: 'Pago rechazado exitosamente',
+        data: {
+          paymentId: paymentId,
+          reason: rejectPaymentDto.rejectionReason,
+          rejectedBy: userId,
+          user,
+        },
       };
     } catch (error) {
       await queryRunner.rollbackTransaction();
