@@ -8,6 +8,7 @@ import {
 import { firstValueFrom } from 'rxjs';
 import { envs } from 'src/config/envs';
 import { Payment } from '../../entities/payment.entity';
+import { PaymentService } from '../payment.service';
 import { BonusProcessingService } from '../shared/bonus-processing.service';
 
 @Injectable()
@@ -15,7 +16,10 @@ export class MembershipPaymentService {
   private readonly logger = new Logger(MembershipPaymentService.name);
   private readonly membershipClient: ClientProxy;
 
-  constructor(private readonly bonusProcessingService: BonusProcessingService) {
+  constructor(
+    private readonly bonusProcessingService: BonusProcessingService,
+    private readonly paymentService: PaymentService,
+  ) {
     this.membershipClient = ClientProxyFactory.create({
       transport: Transport.NATS,
       options: {
@@ -108,6 +112,44 @@ export class MembershipPaymentService {
         message: 'Error al procesar rechazo de pago de membresía',
       });
     }
+  }
+
+  async processBinaryVolumePoints(
+    paymentId: number,
+  ): Promise<{ message: string }> {
+    const payment = await this.paymentService.findOne(paymentId);
+    if (payment.paymentConfig.code === 'MEMBERSHIP_PAYMENT') {
+      const membershipResponse: {
+        plan: {
+          binaryPoints: number;
+        };
+      } = await firstValueFrom(
+        this.membershipClient.send(
+          { cmd: 'membership.getMembershipDetailById' },
+          {
+            membershipId: parseInt(payment.relatedEntityId),
+          },
+        ),
+      );
+      this.logger.log(
+        `Pago de membresía procesado exitosamente para ID: ${payment.relatedEntityId}`,
+      );
+      await this.bonusProcessingService.processBinaryVolumePoints(
+        payment,
+        membershipResponse.plan.binaryPoints,
+      );
+      return {
+        message:
+          'Volumen semanal por pago de memebresía procesado exitosamente',
+      };
+    }
+    await this.bonusProcessingService.processBinaryVolumePoints(
+      payment,
+      payment.amount,
+    );
+    return {
+      message: 'Volumen semanal por pago de reconsumo procesado exitosamente',
+    };
   }
 
   async onModuleDestroy() {

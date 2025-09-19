@@ -1,7 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import {
   ClientProxy,
   ClientProxyFactory,
+  RpcException,
   Transport,
 } from '@nestjs/microservices';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -70,6 +71,19 @@ export class PaymentService {
       this.logger.error(`Error buscando pago por ID ${id}:`, error);
       return null;
     }
+  }
+
+  async findOne(id: number): Promise<Payment> {
+    const payment = await this.paymentRepository.findOne({
+      where: { id },
+      relations: ['paymentConfig'],
+    });
+    if (!payment)
+      throw new RpcException({
+        status: HttpStatus.NOT_FOUND,
+        message: 'No se encontró el pago',
+      });
+    return payment;
   }
 
   // Método adicional para obtener información básica de múltiples pagos
