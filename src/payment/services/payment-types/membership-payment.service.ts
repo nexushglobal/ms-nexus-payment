@@ -119,6 +119,7 @@ export class MembershipPaymentService {
   ): Promise<{ message: string }> {
     const payment = await this.paymentService.findOne(paymentId);
     if (payment.paymentConfig.code === 'MEMBERSHIP_PAYMENT') {
+      console.log('Pago por membresias');
       const membershipResponse: {
         plan: {
           binaryPoints: number;
@@ -143,6 +144,7 @@ export class MembershipPaymentService {
           'Volumen semanal por pago de memebresía procesado exitosamente',
       };
     }
+    console.log('Pago por reconsumo');
     await this.bonusProcessingService.processBinaryVolumePoints(
       payment,
       payment.amount,
