@@ -22,6 +22,7 @@ import { MembershipPaymentService } from './services/payment-types/membership-pa
 import { OrderPaymentService } from './services/payment-types/order-payment.service';
 import { PlanUpgradeService } from './services/payment-types/plan-upgrade.service';
 import { ReconsumptionService } from './services/payment-types/reconsumption.service';
+import { EventPaymentService } from './services/payment-types/event-payment.service';
 import { PaymentService } from './services/payment.service';
 import { BonusProcessingService } from './services/shared/bonus-processing.service';
 import { UserPaymentsService } from './services/user-payment.service';
@@ -57,6 +58,7 @@ import { UserService } from './services/user/user.service';
     ReconsumptionService,
     MembershipPaymentService,
     OrderPaymentService,
+    EventPaymentService,
     UserService,
   ],
   exports: [
@@ -70,6 +72,7 @@ import { UserService } from './services/user/user.service';
     ReconsumptionService,
     MembershipPaymentService,
     OrderPaymentService,
+    EventPaymentService,
     UserService,
     PaymentProcessorService,
   ],

@@ -13,6 +13,7 @@ import { MembershipPaymentService } from './payment-types/membership-payment.ser
 import { OrderPaymentService } from './payment-types/order-payment.service';
 import { PlanUpgradeService } from './payment-types/plan-upgrade.service';
 import { ReconsumptionService } from './payment-types/reconsumption.service';
+import { EventPaymentService } from './payment-types/event-payment.service';
 import { UserService } from './user/user.service';
 
 @Injectable()
@@ -27,6 +28,7 @@ export class PaymentApprovalService {
     private readonly planUpgradeService: PlanUpgradeService,
     private readonly reconsumptionService: ReconsumptionService,
     private readonly orderPaymentService: OrderPaymentService,
+    private readonly eventPaymentService: EventPaymentService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -103,6 +105,10 @@ export class PaymentApprovalService {
 
         case 'ORDER_PAYMENT':
           await this.orderPaymentService.processOrderPayment(payment);
+          break;
+
+        case 'EVENT_PAYMENT':
+          await this.eventPaymentService.processEventPayment(payment);
           break;
 
         default:
@@ -182,6 +188,9 @@ export class PaymentApprovalService {
           break;
         case 'ORDER_PAYMENT':
           await this.orderPaymentService.processOrderRejection(payment);
+          break;
+        case 'EVENT_PAYMENT':
+          await this.eventPaymentService.processEventRejection(payment);
           break;
         default:
           this.logger.warn(

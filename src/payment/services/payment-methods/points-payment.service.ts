@@ -20,6 +20,7 @@ import { MembershipPaymentService } from '../payment-types/membership-payment.se
 import { OrderPaymentService } from '../payment-types/order-payment.service';
 import { PlanUpgradeService } from '../payment-types/plan-upgrade.service';
 import { ReconsumptionService } from '../payment-types/reconsumption.service';
+import { EventPaymentService } from '../payment-types/event-payment.service';
 import { BasePaymentMethodService } from './base-payment-method.service';
 
 @Injectable()
@@ -38,6 +39,7 @@ export class PointsPaymentService extends BasePaymentMethodService {
     private readonly membershipPaymentService: MembershipPaymentService,
     private readonly planUpgradeService: PlanUpgradeService,
     private readonly reconsumptionService: ReconsumptionService,
+    private readonly eventPaymentService: EventPaymentService,
     @Inject(forwardRef(() => WithdrawalsService))
     private readonly withdrawalsService: WithdrawalsService,
   ) {
@@ -168,6 +170,14 @@ export class PointsPaymentService extends BasePaymentMethodService {
               );
             this.logger.log(
               `Reconsumo procesado automáticamente para pago POINTS ${payment.id}`,
+            );
+            break;
+
+          case 'EVENT_PAYMENT':
+            automaticProcessingResult =
+              await this.eventPaymentService.processEventPayment(payment);
+            this.logger.log(
+              `Evento procesado automáticamente para pago POINTS ${payment.id}`,
             );
             break;
 
